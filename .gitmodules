@@ -1,0 +1,3 @@
+[submodule "src/GP"]
+	path = src/GP
+	url = https://github.com/retinal-information-processing-lab/Gaussian-Processes.git
