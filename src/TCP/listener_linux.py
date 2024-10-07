@@ -10,9 +10,9 @@ import numpy as np
 import queue
 import logging
 
-repo_dir = '/home/idv-eqs8-pza/IDV_code/Variational_GP/Gaussian-Processes/Spatial_GP_repo'
-sys.path.insert(0, repo_dir)
-import utils
+# repo_dir = '/home/idv-eqs8-pza/IDV_code/Variational_GP/Gaussian-Processes/Spatial_GP_repo'
+# sys.path.insert(0, repo_dir)
+from src.GP.Spatial_GP_repo import utils
 
 class Decoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
@@ -74,7 +74,6 @@ def fit_and_add_imgID_to_queue(new_spike_count, img_ID_queue, finished_event):
     img_ID_queue.put(imgID)
     logging.info(f"Thread : imdID added to the queue: {imgID}")
     finished_event.set()
-
 
 def dump_on_file(nparray, filename):
     np.save(filename, nparray)
