@@ -1,15 +1,13 @@
 # TODO
 
+## Overview
+
 ## General
-- [ ] Set up CI/CD pipeline
-- [ ] Write unit tests
+- [ ] Test
 
-## Component 1
-- [ ] Implement feature X
-- [ ] Fix bug Y
+## GP: Gaussian process active learning algorithm
+- [ ] Fast estimation of utility: Implementing the inversion of Ktilde (n+1 x n+1) given Ktilde (n x n)
 
-## Component 2
-- [ ] Refactor module Z
+## TCP Protocol:
+- [ ] Implement way to ount the triggers in each packet
 - [ ] Update documentation
-
-One of my components ( component 1) is called Gaussian Process code. Until now i worked on that code as a standalone repo, wich had just one readme and a folder with the utils.py and an example notebook to show the functionaliies. I want to keep that repo, how do I include it as one component of my current project?
