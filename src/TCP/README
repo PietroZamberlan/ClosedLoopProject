@@ -1,0 +1,1 @@
+Folder with scripts to have two machine talk over the ethernet network. Done using TCP (soket package Python) and SSL/TLS for for securing (ssl package)
