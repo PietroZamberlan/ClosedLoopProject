@@ -21,8 +21,12 @@ A string packet is received and decoded with the custom class Decoder, here the 
 If needed, dump the data to disk
 
 - [ ] Implement way check if the recorded spikes are still influenced by the latest shown image.
-    - [ ] If no threshold crosses are present in the packet, it's surely non relevant
-    - [ ] If the threshold has been crossed at least once, the packet is relevant. Implement count_triggers().
+    - [x] If no threshold crosses are present in the packet, it's surely non relevant
+    - [x] If the threshold has been crossed at least once, the packet is relevant. Implement count_triggers().
+    - The code exists for counting the triggers but it relies on *casting to int32* from int16, this is because it realies on the difference of the next voltage value with the current one. And sometimes this difference is too high.
+    - [ ] Find a way to implement it without casting? Is int16 necessary? Thas is the type choosen by Pierre.
+
+    Expected behaviour is counting only the " upward " spikes ( difference of more than 2000? , 5000? mV or whatever unit it is. So that I can call this counter function on a buffer. )
 Check if the packet is relevant, its recorded spikes are still influenced by the latest shown image.
     If no threshold crosses are present in the packet, it's surely non relevant
 
