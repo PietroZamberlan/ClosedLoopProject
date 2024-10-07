@@ -1,5 +1,6 @@
 # Pietro stuff
 src/TCP/saved/*
+jupyter_tests.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
