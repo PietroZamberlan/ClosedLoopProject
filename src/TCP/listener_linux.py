@@ -133,7 +133,7 @@ try:
 
 
         # Dump the trigger channel data
-        threaded_dump(packet['trg_raw_data'], f'./saved/trg_ch_bf_{packet["buffer_nb"]}_2')
+        # threaded_dump(packet['trg_raw_data'], f'./saved/trg_ch_bf_{packet["buffer_nb"]}_2')
 
         # if the buffer never crosses the threshold, discard it
         
