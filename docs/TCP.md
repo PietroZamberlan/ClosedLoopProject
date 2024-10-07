@@ -13,7 +13,8 @@ A string packet is received and decoded with the custom class Decoder, here the 
             - buffer_nb: the number of the buffer
             - n_peaks: the number of peaks in the buffer, already computed by the client
             - peaks: dictionary containing the peaks in each channel
-            -'trg_raw_data': the trigger channel raw data, unfiltered```
+            -'trg_raw_data': the trigger channel raw data, unfiltered
+```
 
 If needed, dump the data to disk
 
