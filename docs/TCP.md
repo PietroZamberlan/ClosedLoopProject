@@ -1,5 +1,7 @@
 # Document for tracking TCP protocol progres and missing features
 
+For a general list of tasks and progress, see the [TODO.md](../TODO.md) file.
+
 For now the TCP protocol on the windows machine can: 
 
 Receive packets from a zmq.PUSH server, sent by the Windows machine.
@@ -18,9 +20,11 @@ A string packet is received and decoded with the custom class Decoder, here the 
 
 If needed, dump the data to disk
 
+- [ ] Implement way check if the recorded spikes are still influenced by the latest shown image.
+    - [ ] If no threshold crosses are present in the packet, it's surely non relevant
+    - [ ] If the threshold has been crossed at least once, the packet is relevant. Implement count_triggers().
 Check if the packet is relevant, its recorded spikes are still influenced by the latest shown image.
     If no threshold crosses are present in the packet, it's surely non relevant
 
 
 
-For a detailed list of tasks and progress, see the [TODO.md](../TODO.md) file.
