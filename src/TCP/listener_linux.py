@@ -96,6 +96,10 @@ n_acquired_buffers = 0 # Number of buffers acquired after the first relevant buf
 n_relevant_buffers = 6 # Number of buffers to acquire after the first relevant buffer, this should depend on the buffeth time lenght and number of ms we want to keep, see below
 trigger_threshold = 5.2*1e5
 ch_id = 255
+
+n_grey_triggers = 
+
+
 computation_finished_event = threading.Event() # Event to signal when the computation thread is finished
 try:
     number = 0
@@ -136,7 +140,6 @@ try:
         # threaded_dump(packet['trg_raw_data'], f'./saved/trg_ch_bf_{packet["buffer_nb"]}_2')
 
         # if the buffer never crosses the threshold, discard it
-        
         if packet['trg_raw_data'].max() < 40000:
             n_acquired_buffers  = 0
             tot_peaks_after_img = 0
