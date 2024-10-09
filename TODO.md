@@ -11,3 +11,7 @@
 ## TCP Protocol:
 - [ ] Implement way check if the recorded spikes are still influenced by the latest shown image.
 - [ ] 
+
+
+## Experimental checks
+- [ ] Is the trigger chanel noise level as stable as we hope? This influences the difference threshold for trigger detection

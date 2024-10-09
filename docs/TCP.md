@@ -23,8 +23,15 @@ If needed, dump the data to disk
 - [ ] Implement way check if the recorded spikes are still influenced by the latest shown image.
     - [x] If no threshold crosses are present in the packet, it's surely non relevant
     - [x] If the threshold has been crossed at least once, the packet is relevant. Implement count_triggers().
-    - The code exists for counting the triggers but it relies on *casting to int32* from int16, this is because it realies on the difference of the next voltage value with the current one. And sometimes this difference is too high.
+    - The code exists for counting the triggers but:
+        - It relies on *casting to int32* from int16, this is because it realies on the difference of the next voltage value with the current one. And sometimes this difference is too high.
+        - It gets the first voltage above noise level that could be detected at sample frequency. Is it a limit?
     - [ ] Find a way to implement it without casting? Is int16 necessary? Thas is the type choosen by Pierre.
+    - [x] Handle adge cases in which a trigger happens right at the end of a buffer
+    - [x] Implement the counter for triggers in the gray. Images will be shown as #n of grey triggers, #n of image triggers #n of grey triggers
+    - [x] Handle the case of absence of triggers in a buffer
+    - [ ] Implement the counter for the 3 kinds of images that will be shown Checkerboard, Active choice, Random Choice
+    - [ ] Implement anti aliasing control. Difference between triggers shouldnt be too different between each 
 
     Expected behaviour is counting only the " upward " spikes ( difference of more than 2000? , 5000? mV or whatever unit it is. So that I can call this counter function on a buffer. )
 Check if the packet is relevant, its recorded spikes are still influenced by the latest shown image.
