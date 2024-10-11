@@ -268,21 +268,22 @@ try:
                 packet = json.loads(string_packet, cls=Decoder)
                 print("     ...Discarding packet while waiting for computation to finish \n")
             else:
-                print("     ...Computation finished, ready to analize next buffer \n")
+                print("     ...Computation finished, ready to send output to client \n")
 
         else:
             print(f'   Too few natural triggers {n_trgs_natural_img} trgs < {max_img_trgs}, continue...')
             continue
 
-
-        # new_img_id = img_ID_queue.get() #retrieves next available result and removes it from the queue
-        # print(f"Next image to display: {new_img_id}")
+        # Get the result of the computation thread and send it to the client
+        new_img_id = img_ID_queue.get() #retrieves next available result and removes it from the queue
+        print(f"Next image to display: {new_img_id}")
         # computation_thread.join()
         # continue
         #endregion
 
 except KeyboardInterrupt:
     print("Server is shutting down...")
+
 finally:
     print('Closing pull socket...')
     pull_socket.setsockopt(zmq.LINGER, 0)

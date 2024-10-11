@@ -21,10 +21,8 @@ A string packet is received and decoded with the custom class Decoder, here the 
 If needed, dump the data to disk
 
 - [ ] Implement way check if the recorded spikes are still influenced by the latest shown image.
-    - [x] If no threshold crosses are present in the packet, it's surely non relevant
-    - [x] If the threshold has been crossed at least once, the packet is relevant. Implement count_triggers().
+    - [x] Implement count_triggers().
     - The code exists for counting the triggers but:
-        - It relies on *casting to int32* from int16, this is because it realies on the difference of the next voltage value with the current one. And sometimes this difference is too high.
         - It gets the first voltage above noise level that could be detected at sample frequency. Is it a limit?
     - [ ] Find a way to implement it without casting? Is int16 necessary? Thas is the type choosen by Pierre.
     - [x] Handle adge cases in which a trigger happens right at the end of a buffer
@@ -37,5 +35,5 @@ If needed, dump the data to disk
 Check if the packet is relevant, its recorded spikes are still influenced by the latest shown image.
     If no threshold crosses are present in the packet, it's surely non relevant
 
-
+- [ ] Set the time window of interest for the relevant spikes as +30ms to +350ms after natural image trigger.
 
