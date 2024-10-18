@@ -1,5 +1,6 @@
 # Pietro stuff
 src/TCP/saved/*
+src/DMD/saved/*
 jupyter_tests.ipynb
 
 # Byte-compiled / optimized / DLL files
