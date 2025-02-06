@@ -18,11 +18,15 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 print(f"Device: {DEVICE} from tcp_utils")
 
-def count_triggers( trigger_ch_sequence, trigger_diff_threshold=2000, trigger_threshold=51000):
+def count_triggers( trigger_ch_sequence, trigger_diff_threshold=2000):
 
-    '''Counts the triggers in the provided array, tipically an quired buffer
-    trigger_ch_sequence: np.array - the sequence of signals aquired from the trigger channel
-    trigger_diff_threshold: int - the different threshold between two sonsecutive signals in the sequence to be considered a trigger
+    '''Counts the triggers in the provided array, tipically an aquired buffer.
+    trigger_ch_sequence:    np.array - the complete sequence of signals aquired from the trigger channel
+    trigger_diff_threshold: int      - the difference threshold between two consecutive signals in the sequence to be considered a trigger
+
+    Returns:
+    n_triggers:             int      - the number of triggers detected in the sequence
+    detected_trigger_idx:   np.array - the indexes of the triggers detected in the sequence
 
     '''
     start = 0
@@ -58,7 +62,6 @@ def count_triggers( trigger_ch_sequence, trigger_diff_threshold=2000, trigger_th
     return n_triggers, detected_trigger_idx, trg_close_to_end, trg_close_to_start
 
 def update_fit(new_spike_count, print_lock):
-
     '''
     Update the GP variational (m,V) and likelihood (A, lambda0) parameters using the latest revceived spike count
     return the id of the new, most informative image to display next
@@ -67,13 +70,17 @@ def update_fit(new_spike_count, print_lock):
         new_spike_count (int): The number of spikes received after the image was displayed ( in the relevant time interval T )
         result_queue : the queue to store the results of the fit 
     '''
-    with print_lock:
-        print(f"\n...Thread: Updating the fit using {new_spike_count} spikes...")
+    start_time = time.time()
+    with print_lock: print(f"\n...Fit Thread: Starting fit using {new_spike_count} spikes...")
     new_spike_count = torch.tensor(new_spike_count, device=DEVICE)
     # with print_lock:
         # print(f"\n...Thread: New_spike_count is on device: {new_spike_count.device}")
+
+    # Extracting randomly the new image ID for now
     result = new_spike_count*2
+    # result = np.random.randint(0, 100)
     time.sleep(1)
+    with print_lock: print(f"\n...Fit Thread: Fit finished in {time.time()-start_time:.2f}s, result is imdID {result}...")
     return result.to('cpu')
 
 def fit_end_queue_img(new_spike_count, img_ID_queue, threadict):
@@ -83,11 +90,11 @@ def fit_end_queue_img(new_spike_count, img_ID_queue, threadict):
     imgID = update_fit(new_spike_count, threadict['print_lock'])
     img_ID_queue.put(imgID)
     with threadict['print_lock']:
-        print(f"\n...Thread: imdID {imgID} added to the queue: {imgID}")
+        print(f"\n...Fit Thread: imdID {imgID} added to the queue: {imgID}")
     threadict['fit_finished_event'].set()
     return
 
-def generate_vec_file(chosen_img_ID, rndm_img_id, max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10):
+def generate_vec_file(chosen_img_ID, rndm_img_id, max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10, save_file=None):
     """
     Generate the VEC file for the chosen image ID and the random image ID., with the following structure:
     0 {max_total_frames} 0 0 0
@@ -111,15 +118,16 @@ def generate_vec_file(chosen_img_ID, rndm_img_id, max_gray_trgs=10, max_img_trgs
     # Write the first line
     lines.append(f"0 {max_gray_trgs+max_img_trgs+max_gray_trgs+max_img_trgs+ending_gray_trgs} 0 0 0\n")
     # Write the following lines
-    for _ in range(max_gray_trgs):     lines.append("0 0 0 0 0\n")
+    for _ in range(max_gray_trgs):     lines.append(f"0 0 0 0 0\n")
     for _ in range(max_img_trgs):      lines.append(f"0 {chosen_img_ID} 0 0 0\n")            
-    for _ in range(max_gray_trgs):     lines.append("0 0 0 0 0\n")  
+    for _ in range(max_gray_trgs):     lines.append(f"0 0 0 0 0\n")  
     for _ in range(max_img_trgs):      lines.append(f"0 {rndm_img_id} 0 0 0\n")            
-    for _ in range(ending_gray_trgs):  lines.append("0 0 0 0 0\n")  
+    for _ in range(ending_gray_trgs):  lines.append(f"0 0 0 0 0\n")  
 
     file_content = ''.join(lines)
-    with open(file_path, 'w') as file: 
-        file.write(file_content)
+    if save_file:
+        with open(file_path, 'w') as file: 
+            file.write(file_content)
               
     return file_content, file_path
 
@@ -130,12 +138,11 @@ def vec_send_and_confirm( chosen_img_ID, rndm_img_id, threadict, req_socket_vec,
     Stop discarding packets
     '''
     
-    with threadict['print_lock']:
-        print(f"\n...VEC Thread: Generating VEC file for image ID: {chosen_img_ID}", end="")
+    with threadict['print_lock']: print(f"\n...VEC Thread: Generating VEC file for image ID: {chosen_img_ID}", end="")
     vec_content, vec_path = generate_vec_file(chosen_img_ID=chosen_img_ID, rndm_img_id=rndm_img_id, max_gray_trgs=max_gray_trgs,
-                                               max_img_trgs=max_img_trgs, ending_gray_trgs=ending_gray_trgs )
-    with threadict['print_lock']:
-        print(f"\n...VEC Thread: Sending VEC file for image ID: {chosen_img_ID}", end="")
+                                               max_img_trgs=max_img_trgs, ending_gray_trgs=ending_gray_trgs, save_file=False )
+    with threadict['print_lock']: print(f"\n...VEC Thread: Sending VEC file for image ID: {chosen_img_ID}", end="")
+
     # Send the VEC file to the client and wait for confirmation
     req_socket_vec.send_string(vec_content)
     # Poll the socket for a reply with a timeout, basically wait for tot milliseconds for a reply
@@ -144,8 +151,7 @@ def vec_send_and_confirm( chosen_img_ID, rndm_img_id, threadict, req_socket_vec,
     poller_vec        = zmq.Poller()
     poller_vec.register(req_socket_vec, zmq.POLLIN)
     start_time_vec = time.time()
-    with threadict['print_lock']:
-        print(f'\n...VEC Thread: Waiting VEC confirmation from the client, timeout in 3 seconds...', end="\n")
+    with threadict['print_lock']: print(f'\n...VEC Thread: Waiting VEC confirmation from the client, timeout in {timeout_vec} seconds...', end="\n")
 
     while not threadict['global_stop_event'].is_set() and (time.time() - start_time_vec) < timeout_vec:    
         socks = dict(poller_vec.poll(timeout=poll_interval_vec))
@@ -160,13 +166,12 @@ def vec_send_and_confirm( chosen_img_ID, rndm_img_id, threadict, req_socket_vec,
                 threadict['vec_failure_event'].set() 
                 return           
     if threadict['global_stop_event'].is_set():
-        with threadict['print_lock']: 
-            print(f"\n...VEC Thread: Global stop", end="")
+        with threadict['print_lock']: print(f"\n...VEC Thread: Global stop", end="")
         return
-       
-    print(f"\n...VEC Thread: Error: Timeout expired, the client did not confirm the VEC", end="")
-    threadict['vec_failure_event'].set()        
-    return
+    else:
+        with threadict['print_lock']: print(f"\n...VEC Thread: Error: Timeout expired, the client did not confirm the VEC", end="")
+        threadict['vec_failure_event'].set()        
+        return
 
 def dmd_off_send_confirm(req_socket_dmd, threadict):
 
@@ -185,7 +190,7 @@ def dmd_off_send_confirm(req_socket_dmd, threadict):
                 threadict['DMD_stopped_event'].set()
                 threadict['dmd_off_set_time'] = time.time()  # Record the time when the event is set
                 print(f"\n...DMD off Thread: Client confirmed DMD off", end="")
-                with threadict['print_lock']: print(f"\n...DMD off Thread: Client confirmed DMD off", end="")    
+                with threadict['print_lock']: print(f"\n...DMD off Thread: Client confirmed DMD off {(time.time() - start_time_dmd):.2f}s after request ", end="")    
                 return
             else: 
                 with threadict['print_lock']: print(f"\n...DMD off Thread: Client replied to DMD request with unexpected message: {confirmation}", end="")        
@@ -194,9 +199,9 @@ def dmd_off_send_confirm(req_socket_dmd, threadict):
     if threadict['global_stop_event'].is_set():
         with threadict['print_lock']: print(f"\n...DMD off Thread: Global stop", end="")
         return
-
-    with threadict['print_lock']: print(f"\n...DMD off Thread: Client didn't confirm DMD off, timeout", end="")        
-    return
+    else:
+        with threadict['print_lock']: print(f"\n...DMD off Thread: Client didn't confirm DMD off, timeout", end="")        
+        return
 
 def time_since_event_set(event_set_time):
     if event_set_time is None:
@@ -211,11 +216,12 @@ def threaded_dump(array, file_path):
     array (numpy.ndarray): The NumPy array to save.
     file_path (str): The path to the file where the array will be saved.
     """
-    def save_array():
-        np.save(file_path, array)
-        # print(f"Array saved to {file_path}")
+    np.save(file_path, array)
 
-    # Create and start a new thread to save the array
-    thread = threading.Thread(target=save_array)
-    thread.start()
+
+
+
+
+
+
 

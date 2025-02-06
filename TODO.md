@@ -6,8 +6,8 @@
 - [ ] Test
 
 ## GP: Gaussian process active learning algorithm
-- [ ] Problems emerge when no E step is done and only hyperparameters are updated. A saved model with a bug is available in Gaussian-processes/models/
-- [ ] Fast estimation of utility: Implementing the inversion of Ktilde (n+1 x n+1) given Ktilde (n x n)
+- [x] Problems emerge when no E step is done and only hyperparameters are updated. A saved model with a bug is available in Gaussian-processes/models/
+- [x] Fast estimation of utility: Implementing the inversion of Ktilde (n+1 x n+1) given Ktilde (n x n)
 - [ ] Fast computation of the (n+1 x n+1) Kernel given the (n x n) one. Give that we dont learn the hyperparameter this should be fast
 - [ ] Profile the bottlenecks
     - [ ] Lambert W function is being handled by the CPU ( it gets copyed every time to the GPU)
@@ -28,3 +28,7 @@
 - [ ] Implement run_DMD.py script on Windows machine to automate the use of film.exe compiled executable to present DMD images
 - [ ] Make the above faster by reducing the size of images, the number of loaded frames etc
 
+## Urgent:
+
+- SSH to windows computer
+- Comment event variables use

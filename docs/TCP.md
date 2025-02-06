@@ -6,9 +6,9 @@ For now the TCP protocol on the windows machine can:
 
 Receive packets from a zmq.PUSH server, sent by the Windows machine.
 
-We keep track of the number of peacks after an image, and number of packets taht have been treated for a given image.
+Keep track of the number of peacks after an image, and number of packets that have been treated for a given image.
 
-A string packet is received and decoded with the custom class Decoder, here the followinf informations are contined in a dictionary:
+A string packet is received and decoded with the custom class Decoder, here the following informations are contained in a dictionary:
 
 ```{'buffer_nb': 10, 'n_peaks': 0,'peaks': {'ch_nb from 0 to 255': np.array(shape=n of peaks in buffer with 'timestamp') } }'}}
             - Unpackable using the custom Decoder class

@@ -24,6 +24,10 @@ class CustomException(Exception):
         self.message = message
         
 def threaded_wait_dmd_off( rep_socket_dmd, dmd_off_event, stop_event):
+    '''
+
+    
+    '''
     try:
         # Poll the socket for command with a timeout
         
@@ -92,19 +96,24 @@ def threaded_wait_for_vec( rep_socket_vec, confirmation_sent_event, failure_even
             failure_event.set()
             return
      
-    print("...VEC Thread: Timeout expired")
+    print("...VEC Thread: Timeout expired -- Possible bug here: why is failure_event being set?")
     failure_event.set()
     return
 
-def threaded_DMD(DMD_exe_path, DMD_exe_dir, input_data, process_queue, dmd_off_event, log_file=None):
-    
+def threaded_DMD(DMD_exe_path, DMD_exe_dir, DMD_input_data, processes_queue, dmd_off_event, log_file=None):
+    '''
+    Activates the DMD executable process with the given parameters in DMD_input_data
+
+    To allow to programmatically and the process, we need to wait for the DMD_process.communicate() 
+    timeout to expire and raise an exception. We catch it and then we can terminate the process if needed
+    '''
     try:
         DMD_process = subprocess.Popen([DMD_exe_path], cwd=DMD_exe_dir,
                                        stdin=subprocess.PIPE, stdout=log_file,
                                        stderr=log_file, text=True )    
-        process_queue.put(DMD_process)
+        processes_queue.put(DMD_process)
         # DMD autofill, we need the process to be timed out to be able to close it
-        stdout, stderr = DMD_process.communicate(input=input_data, timeout=0.1)
+        stdout, stderr = DMD_process.communicate(input=DMD_input_data, timeout=0.1)
     except subprocess.TimeoutExpired:
         print('...DMD Thread: Timeout expired, DMD can be terminated')
             
@@ -121,7 +130,7 @@ confirmation_sent_event = threading.Event()
 failure_event           = threading.Event() # failure to receive vec file
 stop_event              = threading.Event()
 dmd_off_event           = threading.Event()
-process_queue           = queue.Queue()
+processes_queue           = queue.Queue()
 
 # Define the executables paths
 DMD_exe_path = r"C:/Users/user/Repositories/cppalp/x64/Release/film.exe"
@@ -135,10 +144,10 @@ bin_number = "0"
 vec_number = "0"
 frame_rate = "30"
 advanced_f = "y"
-n_frames_LUT ="15"
+n_frames_LUT = "15"
 
-exe_params = [pietro_dir, bin_number, vec_number, frame_rate, advanced_f, n_frames_LUT]
-input_data = "\n".join(exe_params)+"\n"
+DMD_exe_params = [pietro_dir, bin_number, vec_number, frame_rate, advanced_f, n_frames_LUT]
+DMD_input_data = "\n".join(DMD_exe_params)+"\n"
 signal_file = "signal_file.txt"
 
 # ort reader parameters
@@ -189,9 +198,9 @@ with open("ort_reader_output.log", "w") as log_file:
                 communication_thread = threading.Thread(target=threaded_wait_for_vec, args=args) 
                 communication_thread.start()
 
-                # Start DMD from the right directory
+                # Start DMD (from the right directory)
                 print('Launching DMD subprocess thread')                     
-                args_DMD_thread = (DMD_exe_path, DMD_exe_dir, input_data, process_queue, dmd_off_event, log_file)
+                args_DMD_thread = (DMD_exe_path, DMD_exe_dir, DMD_input_data, processes_queue, dmd_off_event, log_file)
                 DMD_thread      = threading.Thread(target=threaded_DMD, args=args_DMD_thread) 
                 DMD_thread.start()
                 print('Waiting for VEC...')
@@ -205,26 +214,25 @@ with open("ort_reader_output.log", "w") as log_file:
 
                 print("Stopping communication threads ( VEC and DMD ) ")
                 stop_event.set()
-                print("Joining communication thread")
-                communication_thread.join()
+
                 print("Joining DMD listened thread")
                 DMD_listening_thread.join()
-                
+                print("Joining communication thread")
+                communication_thread.join()
                 print("Joining DMD thread")
                 DMD_thread.join()   
         
-                
                 #break
                 # TO absolulety check. I an not closing the socket where i am waiting for
                 # the response. This means that if some vec file is in the queue, 
                 # I might get it in the next loop
                 #time.sleep(3)
                 #break
-                if counter == 5:
-                    break
-                else:
-                    counter+=1
-                    continue
+                # if counter == 5:
+                #     break
+                # else:
+                #     counter+=1
+                #     continue
         
     except KeyboardInterrupt:
         print("Key Interrupt")    
@@ -237,8 +245,8 @@ with open("ort_reader_output.log", "w") as log_file:
             communication_thread.join()
         
         print("Terminating subprocesses...")
-        if not process_queue.empty():
-            DMD_process = process_queue.get()
+        if not processes_queue.empty():
+            DMD_process = processes_queue.get()
             if DMD_process.poll() is None: 
                 print("Terminating DMD subprocess")
                 DMD_process.terminate()

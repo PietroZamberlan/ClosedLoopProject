@@ -100,9 +100,6 @@ socket = context.socket(zmq.PUSH)
 socket.connect(f"tcp://{args.ip}:{args.port}")
 device = CMeaDeviceNet(McsBusTypeEnumNet.MCS_USB_BUS);
 
-
-
-
 ### We create the file to dump the recording as a raw binary file
 from pathlib import Path
 data_filename = Path(args.filename)
