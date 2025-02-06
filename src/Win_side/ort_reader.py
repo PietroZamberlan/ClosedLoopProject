@@ -4,15 +4,31 @@ import base64
 import clr
 import ctypes
 import argparse
+import sys
+import importlib.util
+import json, numpy
+import sys
+import numpy as np
+import zmq
+import scipy
 
 from System import *
 clr.AddReference('System.Collections')
 from System.Collections.Generic import List
 
-import json, numpy
+from clr_array_to_numpy import asNumpyArray # This is the original way to do it, but you need to sys.path.append('path_to_McsUsbNet_Examples')
 
-#LINUX_MACHINE_IP = '172.17.12.105'
-#linux_machine_ip 172.17.12.179
+# To imoprt Mcs
+clr.AddReference('C:\\Users\\user\\ClosedLoopProject\\src\\Win_side\\McsUsbNet_Examples\\McsUsbNet\\x64\\\McsUsbNet.dll')
+from Mcs.Usb import CMcsUsbListNet
+from Mcs.Usb import DeviceEnumNet
+from Mcs.Usb import CMeaDeviceNet
+from Mcs.Usb import McsBusTypeEnumNet
+from Mcs.Usb import DataModeEnumNet
+from Mcs.Usb import SampleSizeNet
+from Mcs.Usb import SampleDstSizeNet
+
+from pathlib import Path
 
 class NoDeviceFoundError(Exception):
     def __init__(self, message):
@@ -56,68 +72,6 @@ class Encoder(json.JSONEncoder):
                 raise error
 
         return ser_obj
-
-from clr_array_to_numpy import asNumpyArray
-
-clr.AddReference(os.getcwd() + '\\..\\..\\McsUsbNet\\x64\\\McsUsbNet.dll')
-from Mcs.Usb import CMcsUsbListNet
-from Mcs.Usb import DeviceEnumNet
-
-parser = argparse.ArgumentParser(
-                    prog='Daemon to get peaks',
-                    description='Record the MCS device to disk and send buffers via TCP')
-
-parser.add_argument('filename')
-parser.add_argument('-ip', default='127.0.0.1', dest='ip')
-parser.add_argument('-p', '--port', default=1234, dest='port', type=int)
-parser.add_argument('-b', '--buffer', default=1024, dest='buffer_size', type=int)
-parser.add_argument('-s', '--sampling', default=20000, dest='sampling_rate', type=int)
-parser.add_argument('-t', '--threshold', default=6, dest='threshold', type=int)
-parser.add_argument('-n', '--num_buffers', default=10, dest='num_buffers', type=int)
-parser.add_argument('-e', '--exclude_sweep_ms', default=2, dest='sweep', type=int)
-
-peaks_only = True
-do_filtering = True
-
-args = parser.parse_args()
-from Mcs.Usb import CMeaDeviceNet
-from Mcs.Usb import McsBusTypeEnumNet
-from Mcs.Usb import DataModeEnumNet
-from Mcs.Usb import SampleSizeNet
-from Mcs.Usb import SampleDstSizeNet
-
-import numpy as np
-import zmq
-
-
-
-import scipy
-context = zmq.Context()
-#socket = context.socket(zmq.STREAM)
-#socket.bind(f'tcp://{args.ip}:{args.port}')
-
-socket = context.socket(zmq.PUSH)
-socket.connect(f"tcp://{args.ip}:{args.port}")
-device = CMeaDeviceNet(McsBusTypeEnumNet.MCS_USB_BUS);
-
-### We create the file to dump the recording as a raw binary file
-from pathlib import Path
-data_filename = Path(args.filename)
-if data_filename.exists():
-    import os
-    os.remove(data_filename)
-data_file = open(args.filename, 'wb')
-
-### Definition of the lowpass filter
-filter_coeff = scipy.signal.iirfilter(
-    3,
-    200, 
-    fs=args.sampling_rate, 
-    analog=False, 
-    btype='highpass', 
-    ftype='butter', 
-    output="ba"
-)
 
 def OnChannelData(x, cbHandle, numSamples):
     
@@ -167,18 +121,80 @@ def OnChannelData(x, cbHandle, numSamples):
                                                    distance=exclude_sweep_ms)[0]
                 n_peaks += len(peaks[i])
             print(f"Found {n_peaks} peaks during the buffer")
-            packet = {'buffer_nb' : nb_buffers, 'peaks' : peaks, 'n_peaks' : n_peaks, 'trg_raw_data' : trg_raw_data}
+            packet = {'buffer_nb' : nb_buffers, 'peaks' : peaks, 'n_peaks' : n_peaks, 'trg_raw_data' : trg_raw_data, 'send_time': time.time()}
             socket.send_string(json.dumps(packet, cls=Encoder))    
     else:
-        packet = {'buffer_nb' : nb_buffers, 'data' : filtered_traces.flatten(), 'trg_raw_data' : trg_raw_data }
-        socket.send_string(json.dumps(packet, cls=Encoder)) 
+        # Ugly logic to not break things. Of course one could calculate peaks before and use continue keywords
+        if nb_buffers < args.num_buffers: # Initial buffers are held together to allow the filtering to work, they are not sent
+            tstart = nb_buffers*args.buffer_size
+            buffered_data[tstart:tstart+frames_ret] = filtered_traces
+        elif nb_buffers == args.num_buffers:
+            thresholds[:] = np.median(np.abs(buffered_data - np.median(buffered_data, 0)), 0)
+            thresholds[:] *= args.threshold
+        else:
+            peaks = {}
+            n_peaks = 0
+            for i in range(num_channels):
+    
+                peaks[i] = scipy.signal.find_peaks(-filtered_traces[:, i], 
+                                                   height=thresholds[i],
+                                                   distance=exclude_sweep_ms)[0]
+                n_peaks += len(peaks[i])
+            print(f"Found {n_peaks} peaks during the buffer")
+            # filtered_traces was .flatten() when sent. this might improve performance
+            packet = {'buffer_nb' : nb_buffers, 'data' : filtered_traces, 'trg_raw_data' : trg_raw_data, 'peaks' : peaks, 'n_peaks' : n_peaks, 'send_time': time.time()}
+            socket.send_string(json.dumps(packet, cls=Encoder)) 
 
     data_file.write(flatten)
     nb_buffers += 1
         
-
 def OnError(msg, info):
     print(msg, info)
+
+parser = argparse.ArgumentParser(
+                    prog='Daemon to get peaks',
+                    description='Record the MCS device to disk and send buffers via TCP')
+
+parser.add_argument('filename')
+parser.add_argument('-ip', default='127.0.0.1', dest='ip')
+parser.add_argument('-p', '--port', default=1234, dest='port', type=int)
+parser.add_argument('-b', '--buffer', default=1024, dest='buffer_size', type=int)
+parser.add_argument('-s', '--sampling', default=20000, dest='sampling_rate', type=int)
+parser.add_argument('-t', '--threshold', default=26, dest='threshold', type=int)
+parser.add_argument('-n', '--num_buffers', default=10, dest='num_buffers', type=int)
+parser.add_argument('-e', '--exclude_sweep_ms', default=2, dest='sweep', type=int)
+
+peaks_only = False
+do_filtering = False
+
+args = parser.parse_args()
+
+context = zmq.Context()
+#socket = context.socket(zmq.STREAM)
+#socket.bind(f'tcp://{args.ip}:{args.port}')
+
+socket = context.socket(zmq.PUSH)
+socket.connect(f"tcp://{args.ip}:{args.port}")
+device = CMeaDeviceNet(McsBusTypeEnumNet.MCS_USB_BUS);
+
+
+### We create the file to dump the recording as a raw binary file
+data_filename = Path(args.filename)
+if data_filename.exists():
+    import os
+    os.remove(data_filename)
+data_file = open(args.filename, 'wb')
+
+### Definition of the lowpass filter
+filter_coeff = scipy.signal.iirfilter(
+    3,
+    200, 
+    fs=args.sampling_rate, 
+    analog=False, 
+    btype='highpass', 
+    ftype='butter', 
+    output="ba"
+)
 
 deviceList = CMcsUsbListNet(DeviceEnumNet.MCS_DEVICE_USB)
 DataModeToSampleSizeDict = {
@@ -191,9 +207,11 @@ DataModeToSampleDstSizeDict = {
     DataModeEnumNet.Signed_32bit :  SampleDstSizeNet.SampleDstSize32
 }
 
+
 if deviceList.Count == 0:
-    raise NoDeviceFoundError("No device is connected, or it's turned off")
-    
+    # raise NoDeviceFoundError("No device is connected, or it's turned off")
+    print("No device is connected, or it's turned off", file=sys.stderr)
+    sys.exit(1)
 print("found %d devices" % (deviceList.Count))
 
 for i in range(deviceList.Count):
@@ -243,19 +261,24 @@ exclude_sweep_ms = int(args.sampling_rate * args.sweep * 1e-3)
 buffered_data = np.zeros((args.num_buffers*args.buffer_size, mChannels), dtype=np.uint16)
 
 
-device.ChannelBlock.SetSelectedData(  mChannels  , callbackThreshold * 10, callbackThreshold, DataModeToSampleSizeDict[dataMode], DataModeToSampleDstSizeDict[dataMode], block)
+device.ChannelBlock.SetSelectedData(  
+    mChannels  , callbackThreshold * 10, callbackThreshold, DataModeToSampleSizeDict[dataMode], DataModeToSampleDstSizeDict[dataMode], block)
+
 try:
     with open("signal_file.txt", "w") as f:
         f.write("Signal to launch the executable")
-        print('Signal file written')
+        print('Signal file to launch DMD written')
     device.StartDacq()
-    time.sleep(120)
-    device.StopDacq()
-    device.Disconnect()
+    # time.sleep(20)
+    while True:
+        time.sleep(1)
+        # print('Still alive...')
 
 except KeyboardInterrupt:
-    print("Server is shutting down...")
+    pass
+    
 finally:
+    print("Server is shutting down...")
     print('Stopping acquisition...')
     device.StopDacq()
     print('Disconnecting MEA...')
@@ -265,3 +288,33 @@ finally:
     socket.close()
     print('Closing context...')
     context.term()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
