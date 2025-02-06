@@ -2,6 +2,8 @@
 src/TCP/saved/*
 src/DMD/saved/*
 jupyter_tests.ipynb
+toto.raw
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
