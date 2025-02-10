@@ -23,4 +23,7 @@ frame_rate     = "30"
 advanced_f     = "y"
 n_frames_LUT   = "15"
 buffer_size    = "1024"
-raw_data_file_path = "data/toto.raw"
+raw_data_file_path = "data/raw_data.raw"
+
+# MEA and DMD parameters
+signal_file = "signal_file.txt"  # Signal file that ort_reader writes to allow DMD to start

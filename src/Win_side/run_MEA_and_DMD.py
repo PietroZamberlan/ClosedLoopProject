@@ -28,7 +28,6 @@ print(f"Repo dir: {repo_dir}")
 from config.config import *
 from win_utils import *
 
-
 # Threading variables
 vec_received_confirmed_event = threading.Event()
 global_stop_event            = threading.Event()
@@ -46,7 +45,6 @@ DMD_thread                       = None
 
 exe_params = [pietro_dir_DMD, bin_number, vec_number, frame_rate, advanced_f, n_frames_LUT]
 input_data_DMD = "\n".join(exe_params)+"\n"
-signal_file = "signal_file.txt"
 
 # ort reader parameters
 ort_reader_params = ["-ip", LINUX_IP, "--port", PULL_SOCKET_PACKETS_PORT, 
@@ -80,13 +78,17 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
                 print(f'===========[ {counter} ]=============')
 
                 # Launch DMD off receiver listening thread
-                DMD_off_listening_thread = launch_dmd_off_receiver()
+                DMD_off_listening_thread = launch_dmd_off_receiver(
+                    dmd_off_event, rep_socket_dmd, global_stop_event)
             
                 # Launch VEC receiver and confirmer thread
-                vec_receiver_confirmer_thread = launch_vec_receiver_confirmer()
+                vec_receiver_confirmer_thread = launch_vec_receiver_confirmer(
+                    vec_received_confirmed_event, rep_socket_vec, global_stop_event)
 
                 # Start DMD projector                
-                # DMD_thread = launch_DMD_process_thread()
+                DMD_thread = launch_DMD_process_thread( 
+                    allow_vec_changes_event, input_data_DMD, process_queue_DMD, dmd_off_event, global_stop_event, log_file_DMD,
+                    testmode=True)
 
                 print('Threads launched - Waiting for VEC...')
                 while ( not vec_received_confirmed_event.is_set() ):
@@ -133,7 +135,7 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
             
             # Terminate subprocesses
             terminate_DMD_queue(process_queue_DMD)
-            terminate_ort_process(ort_process)
+            terminate_ort_process(ort_process, log_file_ort)
             
             # Close the sockets
             print('Closing VEC dedicated socket...')
