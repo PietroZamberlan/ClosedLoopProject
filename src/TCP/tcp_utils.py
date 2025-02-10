@@ -29,8 +29,9 @@ def count_triggers( trigger_ch_sequence, trigger_diff_threshold=2000):
     detected_trigger_idx:   np.array - the indexes of the triggers detected in the sequence
 
     '''
+    
     start = 0
-    end = trigger_ch_sequence.shape[0]
+    end   = trigger_ch_sequence.shape[0]
 
     # trigger counts in the sequence
     n_triggers = 0
@@ -83,9 +84,17 @@ def update_fit(new_spike_count, print_lock):
     with print_lock: print(f"\n...Fit Thread: Fit finished in {time.time()-start_time:.2f}s, result is imdID {result}...")
     return result.to('cpu')
 
-def fit_end_queue_img(new_spike_count, img_ID_queue, threadict):
+def threaded_fit_end_queue_img(new_spike_count, img_ID_queue, threadict):
     '''
-    Add the result of update_fit to the queue of the thread results
+    Updates the fit and adds the new image ID to the queue
+
+    Args:
+        new_spike_count (int): The number of spikes for the last image being presented
+
+        init_model (dict): The initial model parameters ( the previous fit)
+
+    Sets:
+        fit_finished_event: The event to signal that the fit has finished and the new image ID is in the queue
     '''
     imgID = update_fit(new_spike_count, threadict['print_lock'])
     img_ID_queue.put(imgID)
@@ -131,11 +140,16 @@ def generate_vec_file(chosen_img_ID, rndm_img_id, max_gray_trgs=10, max_img_trgs
               
     return file_content, file_path
 
-def vec_send_and_confirm( chosen_img_ID, rndm_img_id, threadict, req_socket_vec,  max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10):
+def threaded_vec_send_and_confirm( chosen_img_ID, rndm_img_id, threadict, req_socket_vec,  max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10):
     '''
-    Generate the vec file.
-    Send to the client the VEC file corresponding the the chosen image ID and wait for confirmation. When received, set the event and allow the main thread to 
-    Stop discarding packets
+    Generates the vec file.
+    Sends to the client the VEC file corresponding the the chosen image ID and wait for confirmation. 
+    When received, set the event and allow the main thread to stop discarding packets
+
+    Sets:
+        vec_confirmation_event: to True when the client confirms the VEC file reception
+
+        vec_failure_event:      to True when the client does not confirm the VEC file reception
     '''
     
     with threadict['print_lock']: print(f"\n...VEC Thread: Generating VEC file for image ID: {chosen_img_ID}", end="")
@@ -166,17 +180,18 @@ def vec_send_and_confirm( chosen_img_ID, rndm_img_id, threadict, req_socket_vec,
                 threadict['vec_failure_event'].set() 
                 return           
     if threadict['global_stop_event'].is_set():
-        with threadict['print_lock']: print(f"\n...VEC Thread: Global stop", end="")
+        with threadict['print_lock']: print(f"\n...VEC Thread: Global stop from outside", end="")
         return
     else:
-        with threadict['print_lock']: print(f"\n...VEC Thread: Error: Timeout expired, the client did not confirm the VEC", end="")
-        threadict['vec_failure_event'].set()        
+        with threadict['print_lock']: print(f"\n...VEC Thread: Error: Timeout expired without VEC reception confirmation - setting Global stop", end="")
+        threadict['vec_failure_event'].set() 
+        threadict['global_stop_event'].set()       
         return
 
-def dmd_off_send_confirm(req_socket_dmd, threadict):
+def threaded_sender_dmd_off_signal(req_socket_dmd, threadict):
 
     req_socket_dmd.send_string("DMD OFF")
-    timeout_dmd    = 3
+    timeout_dmd    = 10
     with threadict['print_lock']: print(f"\n...DMD off Thread: command sent, response timeout {timeout_dmd} seconds", end="")
     poller = zmq.Poller()       
     poller.register(req_socket_dmd, zmq.POLLIN)
@@ -189,7 +204,6 @@ def dmd_off_send_confirm(req_socket_dmd, threadict):
             if confirmation == "DMD OFF":
                 threadict['DMD_stopped_event'].set()
                 threadict['dmd_off_set_time'] = time.time()  # Record the time when the event is set
-                print(f"\n...DMD off Thread: Client confirmed DMD off", end="")
                 with threadict['print_lock']: print(f"\n...DMD off Thread: Client confirmed DMD off {(time.time() - start_time_dmd):.2f}s after request ", end="")    
                 return
             else: 
@@ -197,7 +211,7 @@ def dmd_off_send_confirm(req_socket_dmd, threadict):
                 return
             
     if threadict['global_stop_event'].is_set():
-        with threadict['print_lock']: print(f"\n...DMD off Thread: Global stop", end="")
+        with threadict['print_lock']: print(f"\n...DMD off Thread: Global stop from outside", end="")
         return
     else:
         with threadict['print_lock']: print(f"\n...DMD off Thread: Client didn't confirm DMD off, timeout", end="")        
