@@ -155,7 +155,8 @@ parser = argparse.ArgumentParser(
                     prog='Daemon to get peaks',
                     description='Record the MCS device to disk and send buffers via TCP')
 
-parser.add_argument('filename')
+# parser.add_argument('filename')
+parser.add_argument('--filename', required=True, help='Path to the dump file for raw data')
 parser.add_argument('-ip', default='127.0.0.1', dest='ip')
 parser.add_argument('-p', '--port', default=1234, dest='port', type=int)
 parser.add_argument('-b', '--buffer', default=1024, dest='buffer_size', type=int)
@@ -179,10 +180,10 @@ device = CMeaDeviceNet(McsBusTypeEnumNet.MCS_USB_BUS);
 
 
 ### We create the file to dump the recording as a raw binary file
-data_filename = Path(args.filename)
-if data_filename.exists():
+rawdata_filename = Path(args.filename)
+if rawdata_filename.exists():
     import os
-    os.remove(data_filename)
+    os.remove(rawdata_filename)
 data_file = open(args.filename, 'wb')
 
 ### Definition of the lowpass filter

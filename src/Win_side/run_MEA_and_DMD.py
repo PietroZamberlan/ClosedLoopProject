@@ -21,7 +21,6 @@ import sys
 
 Win_side_path = '.\\src\\Win_side\\' #
 
-
 class CustomException(Exception):
     def __init__(self, message):
         super().__init__(message)
@@ -52,7 +51,7 @@ def wait_for_signal_file_to_start_DMD(ort_process):
         print("Signal file to start DMD found...")
         return
 
-def launch_ort_process( ord_reader_path, ord_reader_params, log_file_ort ):
+def launch_ort_process( ord_reader_path, ort_reader_params, log_file_ort ):
     '''Launches the ort reader process to acquire data from the MEA device.
         
         Sleeps for 2.5 the main thread to wait for ort_reader to get to the point 
@@ -60,11 +59,11 @@ def launch_ort_process( ord_reader_path, ord_reader_params, log_file_ort ):
         
     Args:
         ord_reader_path: The path to the Python script that launches the acquisition
-        ord_reader_params: The parameters to pass to the Python script'''
+        ort_reader_params: The parameters to pass to the Python script'''
     # Run the Python script with the parameters
     print("Launching acquisition...")
     # We set the -u flag to avoid buffering the output ( it would stop the OnChannelData to print the data in real time )
-    ort_process = subprocess.Popen(["python", '-u', ord_reader_path] + ord_reader_params, 
+    ort_process = subprocess.Popen(["python", '-u', ord_reader_path] + ort_reader_params, 
                                     stdout=log_file_ort, stderr=log_file_ort, text=True)
     print("Acquisition is running...")
 
@@ -96,7 +95,7 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
     
     try:
         # Poll the socket for command with a timeout
-        wait_response_timeout_sec = 8
+        wait_response_timeout_sec = 15
         start_time = time.time()
         poller = zmq.Poller()
         poller.register(rep_socket_dmd, zmq.POLLIN)
@@ -104,11 +103,16 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
         
         while not global_stop_event.is_set():
             elapsed_time = time.time() - start_time
-            socks = dict(poller.poll(timeout=100))             
+            socks = dict(poller.poll(timeout=100)) 
+            # print('\n ...DMD Off cmd Receiver Thread: Waiting for command since {} seconds'.format(elapsed_time))            
             if rep_socket_dmd in socks:
                 request = rep_socket_dmd.recv_string()
+
+                print(' vec thread received tipe')
+
+
                 rep_socket_dmd.send_string(request)
-                print("...DMD Off cmd Receiver Thread: Stop command received and confirmed")   
+                print(f"...DMD Off cmd Receiver Thread: Stop command received and confirmed after {elapsed_time:.3f} seconds")   
                 dmd_off_event.set()
                 return
             if elapsed_time > wait_response_timeout_sec:
@@ -146,7 +150,7 @@ def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_
     '''
 
     try:
-        timeout_vec  = 6
+        timeout_vec  = 60
         start_time   = time.time()    
         elapsed_time = 0
         # Poll the socket for a reply with a timeout
@@ -356,7 +360,7 @@ signal_file = "signal_file.txt"
 
 # ort reader parameters
 LINUX_IP = "172.17.12.200"
-ord_reader_params = ["-ip", LINUX_IP, "-p", "5555", "--buffer", "1024", "toto.raw"]
+ort_reader_params = ["-ip", LINUX_IP, "-p", "5555", "--buffer", "1024", "--filename", "data/toto.raw"]
 
 # Listening socket
 context     = zmq.Context()
@@ -376,7 +380,7 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
     open(f"{Win_side_path}output_DMD.log", "w") as log_file_DMD:
         try:
 
-            ort_process = launch_ort_process(ord_reader_path, ord_reader_params, log_file_ort, )
+            ort_process = launch_ort_process(ord_reader_path, ort_reader_params, log_file_ort, )
 
             wait_for_signal_file_to_start_DMD(ort_process)
 
@@ -401,6 +405,7 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
                     pass
                 else:
                     print('Confirmed reception of VEC - Main thread can continue') 
+                    counter += 1
                     continue 
                 
                 # print('No VEC received - Main thread will stop-- ?')

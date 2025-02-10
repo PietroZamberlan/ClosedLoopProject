@@ -3,6 +3,8 @@ src/TCP/saved/*
 src/DMD/saved/*
 jupyter_tests.ipynb
 toto.raw
+data/*
+
 
 
 # Byte-compiled / optimized / DLL files
