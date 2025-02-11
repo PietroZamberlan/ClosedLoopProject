@@ -42,7 +42,7 @@ def wait_for_signal_file_to_start_DMD(ort_process):
         print("Signal file to start DMD found...")
         return
 
-def launch_ort_process( ORT_READER_PATH, ort_reader_params, log_file_ort ):
+def launch_ort_process( ORT_READER_PATH, ort_reader_params, log_file_ort, testmode ):
     '''Launches the ort reader process to acquire data from the MEA device.
         
         Sleeps for 2.5 the main thread to wait for ort_reader to get to the point 
@@ -52,10 +52,13 @@ def launch_ort_process( ORT_READER_PATH, ort_reader_params, log_file_ort ):
         ORT_READER_PATH: The path to the Python script that launches the acquisition
         ort_reader_params: The parameters to pass to the Python script'''
     # Run the Python script with the parameters
-    print("Launching acquisition...")
+    if testmode:
+        print("Launching MEA acquisition in TEST mode...")
+    else:
+        print("Launching MEA acquisition...")
     # We set the -u flag to avoid buffering the output ( it would stop the OnChannelData to print the data in real time )
-    ort_process = subprocess.Popen(["python", '-u', ORT_READER_PATH] + ort_reader_params, 
-                                    stdout=log_file_ort, stderr=log_file_ort, text=True)
+    ort_process = subprocess.Popen(["python", '-u', ORT_READER_PATH] + ort_reader_params + (["-T"] if testmode else []), 
+                                stdout=log_file_ort, stderr=log_file_ort, text=True)
     print("Acquisition is running...")
 
     def flush_log():
@@ -76,21 +79,20 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
     Threaded function to wait for the signal to turn of the DMD coming from the 
     Linux machine.
     
-    Sets:
-        wait_response_timeout_sec: How much time to wait before stopping the
+
+    timeout_dmd_off_rcv: How much time to wait before stopping the
             DMD without signal from Linux. 
             The DMD is not prasenting more than 3 images after all. Only so 
             much time should be needed.
-    
+    ( set in config.py )
     '''
     
     try:
-        # Poll the socket for command with a timeout
-        wait_response_timeout_sec = 15
+        # Poll the socket for command with a timeout - set in config.py
         start_time = time.time()
         poller = zmq.Poller()
         poller.register(rep_socket_dmd, zmq.POLLIN)
-        print(f'...DMD Off cmd receiver Thread: Waiting for command, timeout {wait_response_timeout_sec} seconds')
+        print(f'...DMD Off cmd receiver Thread: Waiting for command, timeout {timeout_dmd_off_rcv} seconds')
         
         while not global_stop_event.is_set():
             elapsed_time = time.time() - start_time
@@ -106,7 +108,7 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
                 print(f"...DMD Off cmd receiver Thread: Stop command received and confirmed after {elapsed_time:.3f} seconds")   
                 dmd_off_event.set()
                 return
-            if elapsed_time > wait_response_timeout_sec:
+            if elapsed_time > timeout_dmd_off_rcv:
                 print("...DMD Off cmd receiver Thread: Timeout expired")
                 dmd_off_event.set()
                 print('...DMD Off cmd receiver Thread: off event set')
@@ -141,7 +143,6 @@ def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_
     '''
 
     try:
-        timeout_vec  = 60
         start_time   = time.time()    
         elapsed_time = 0
         # Poll the socket for a reply with a timeout
@@ -325,3 +326,22 @@ def terminate_ort_process(ort_process, log_file_ort):
 def close_socket(socket):
     socket.setsockopt(zmq.LINGER, 0)
     socket.close()
+
+def generate_packet(buffer_nb):
+    '''
+    Generates a packet dicitonary as it would come out of the MEA.
+
+    Args:
+        buffer_nb (int): The buffer / packet number used to keep track of how many packets have been sent.
+    
+    '''
+
+    packet = {}
+    file_path = os.path.join(repo_dir, f'test_data/ch_{ch_id}/')
+
+    data_path              = os.path.join(file_path, f'data_ch_{ch_id}_bf_{buffer_nb}.npy')
+    packet['data']         = np.load(data_path).astype(np.int32)
+    packet['data']         = np.tile(packet['data'], (256, 1))
+    trgs_path              = os.path.join(file_path, f'trg_ch_bf_{buffer_nb}.npy')
+    packet['trg_raw_data'] = np.load(trgs_path).astype(np.int32)
+    packet['buffer_nb']    = buffer_nb

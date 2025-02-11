@@ -48,7 +48,7 @@ input_data_DMD = "\n".join(exe_params)+"\n"
 
 # ort reader parameters
 ort_reader_params = ["-ip", LINUX_IP, "--port", PULL_SOCKET_PACKETS_PORT, 
-                     "--buffer", buffer_size, "--filename", raw_data_file_path]
+                     "--buffer_size", f'{buffer_size}', "--filename", raw_data_file_path]
 
 # Listening socket
 context     = zmq.Context()
@@ -68,7 +68,9 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
     open(f"{Win_side_path}output_DMD.log", "w") as log_file_DMD:
         try:
 
-            ort_process = launch_ort_process(ORT_READER_PATH, ort_reader_params, log_file_ort, )
+            ort_process = launch_ort_process(
+                ORT_READER_PATH, ort_reader_params, log_file_ort, 
+                testmode=testmode)
 
             wait_for_signal_file_to_start_DMD(ort_process)
 
@@ -88,20 +90,22 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
                 # Start DMD projector                
                 DMD_thread = launch_DMD_process_thread( 
                     allow_vec_changes_event, input_data_DMD, process_queue_DMD, dmd_off_event, global_stop_event, log_file_DMD,
-                    testmode=True)
+                    testmode=testmode)
 
                 print('Threads launched - Waiting for VEC...')
-                while ( not vec_received_confirmed_event.is_set() ):
+                
+                
+                while not vec_received_confirmed_event.is_set():                 
                     if global_stop_event.is_set():
                         raise CustomException("GlobalStopEvent: Main thread stopped by global stop event")
                     pass
+
                 else:
                     print('Confirmed reception of VEC - Main thread can continue') 
                     counter += 1
                     continue 
                 
                 # print('No VEC received - Main thread will stop-- ?')
-
 
                 # print("Stopping communication threads ( VEC and DMD )")
                 # global_stop_event.set()
@@ -123,8 +127,11 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
        
         except KeyboardInterrupt:
             print("Key Interrupt")    
+            global_stop_event.set()
         finally:
             # If it has not be set by a thread, set the global stop event to stop the threads
+
+            print(f' Global stop event is set? {global_stop_event.is_set()}')
             if not global_stop_event.is_set(): 
                 print("Stopping threads ")
                 global_stop_event.set()
