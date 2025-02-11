@@ -69,7 +69,7 @@ def launch_ort_process( ORT_READER_PATH, ort_reader_params, log_file_ort, testmo
     flush_thread = threading.Thread(target=flush_log)
     flush_thread.start()
 
-    time.sleep(2.5) # the ort process takes some time to get to the point in which it writes the signal file, so we wait a bit instead of printing a lot of "waiting for signal file"
+    time.sleep(.5) # the ort process takes some time to get to the point in which it writes the signal file, so we wait a bit instead of printing a lot of "waiting for signal file"
 
     return ort_process
 
@@ -101,11 +101,8 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
             if rep_socket_dmd in socks:
                 request = rep_socket_dmd.recv_string()
 
-                print(' vec thread received tipe')
-
-
                 rep_socket_dmd.send_string(request)
-                print(f"...DMD Off cmd receiver Thread: Stop command received and confirmed after {elapsed_time:.3f} seconds")   
+                print(f"...DMD Off cmd receiver Thread: Stop command received and confirmed {elapsed_time:.3f} seconds")   
                 dmd_off_event.set()
                 return
             if elapsed_time > timeout_dmd_off_rcv:
@@ -124,7 +121,7 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
         print('...DMD Off cmd receiver Thread: EXCEPTION encountered - global_stop_event and dmd_off_event set')
         return
 
-def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_stop_event ):
+def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_stop_event, allow_vec_changes_event ):
     ''' 
     Waits for the VEC file to be received from the Linux machine.
 
@@ -243,7 +240,7 @@ def launch_dmd_off_receiver(dmd_off_event, rep_socket_dmd, global_stop_event):
     DMD_off_listening_thread.start()                
     return DMD_off_listening_thread
 
-def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, global_stop_event):
+def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, global_stop_event, allow_vec_changes_event):
     '''Launches the VEC receiver and confirmer thread
 
         It will wait for the VEC from Linux machine
@@ -265,7 +262,7 @@ def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, 
     print('Launching VEC confirmation thread')
     # Launch parallel function to wait for response
     vec_received_confirmed_event.clear()
-    args = (rep_socket_vec, vec_received_confirmed_event, global_stop_event)
+    args = (rep_socket_vec, vec_received_confirmed_event, global_stop_event, allow_vec_changes_event)
     vec_receiver_confirmer_thread = threading.Thread(target=threaded_wait_for_vec, args=args) 
     vec_receiver_confirmer_thread.start()
     return vec_receiver_confirmer_thread

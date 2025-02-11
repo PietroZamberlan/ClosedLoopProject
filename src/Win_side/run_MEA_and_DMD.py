@@ -74,10 +74,10 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
 
             wait_for_signal_file_to_start_DMD(ort_process)
 
-            counter=0
+            img_pair_counter=0
             while True:
                 
-                print(f'===========[ {counter} ]=============')
+                print(f'===========[ {img_pair_counter} ]=============')
 
                 # Launch DMD off receiver listening thread
                 DMD_off_listening_thread = launch_dmd_off_receiver(
@@ -85,37 +85,30 @@ with open(f"{Win_side_path}output_ort_reader.log", "w") as log_file_ort, \
             
                 # Launch VEC receiver and confirmer thread
                 vec_receiver_confirmer_thread = launch_vec_receiver_confirmer(
-                    vec_received_confirmed_event, rep_socket_vec, global_stop_event)
+                    vec_received_confirmed_event, rep_socket_vec, global_stop_event, allow_vec_changes_event)
 
                 # Start DMD projector                
                 DMD_thread = launch_DMD_process_thread( 
-                    allow_vec_changes_event, input_data_DMD, process_queue_DMD, dmd_off_event, global_stop_event, log_file_DMD,
+                    allow_vec_changes_event, input_data_DMD, process_queue_DMD, dmd_off_event, 
+                    global_stop_event, log_file_DMD,
                     testmode=testmode)
 
+                # Wait for the VEC to be received and confirmed before joining the threads and continuing
                 print('Threads launched - Waiting for VEC...')
-                
-                
-                while not vec_received_confirmed_event.is_set():                 
+                wait_vec_start_time = time.time()
+                while not vec_received_confirmed_event.is_set():
                     if global_stop_event.is_set():
                         raise CustomException("GlobalStopEvent: Main thread stopped by global stop event")
                     pass
 
                 else:
-                    print('Confirmed reception of VEC - Main thread can continue') 
-                    counter += 1
-                    continue 
+                    print(f'Confirmed reception of VEC after {(time.time()-wait_vec_start_time):.3f} sec - Main thread can continue') 
+                    img_pair_counter += 1
                 
-                # print('No VEC received - Main thread will stop-- ?')
-
-                # print("Stopping communication threads ( VEC and DMD )")
-                # global_stop_event.set()
-                # print("Joining communication thread")
-                # vec_receiver_confirmer_thread.join()
-                # print("Joining DMD listened thread")
-                # DMD_off_listening_thread.join()
-                # print("Joining DMD thread")
-                # DMD_thread.join()   
+                    # Join the threads
+                    join_treads([DMD_off_listening_thread, DMD_thread, vec_receiver_confirmer_thread])
         
+                    continue 
                 
                 #break
                 # TO absolulety check. I an not closing the socket where i am waiting for
