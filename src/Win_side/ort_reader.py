@@ -12,6 +12,8 @@ import numpy as np
 import zmq
 import scipy
 
+from win_utils import generate_packet
+
 from System import *
 clr.AddReference('System.Collections')
 from System.Collections.Generic import List
@@ -29,6 +31,11 @@ from Mcs.Usb import SampleSizeNet
 from Mcs.Usb import SampleDstSizeNet
 
 from pathlib import Path
+
+current_dir = os.path.dirname(os.path.realpath(__file__))
+repo_dir    = os.path.join(current_dir, '..\\..\\')
+print(f' current dir from ort_reader: {current_dir}')
+print(f' repo dir from ort_reader: {repo_dir}')
 
 class NoDeviceFoundError(Exception):
     def __init__(self, message):
@@ -78,16 +85,15 @@ def OnChannelData(x, cbHandle, numSamples):
     global nb_buffers
             
     if dataMode == DataModeEnumNet.Unsigned_16bit:
-        data, frames_ret = device.ChannelBlock.ReadFramesUI16(0, 0, callbackThreshold, Int32(0));
+        data, frames_ret = device.ChannelBlock.ReadFramesUI16(0, 0, buffer_size , Int32(0));
         np_data = asNumpyArray(data, ctypes.c_uint16)
     else: # dataMode == DataModeEnumNet.Signed_32bit
-        data, frames_ret = device.ChannelBlock.ReadFramesI32(0, 0, callbackThreshold, Int32(0));
+        data, frames_ret = device.ChannelBlock.ReadFramesI32(0, 0, buffer_size , Int32(0));
         np_data = asNumpyArray(data, ctypes.c_int32)
     
     flatten = np_data.tobytes()
     print(f'OnChan: {nb_buffers}')
          
-    
     num_channels = len(np_data) // frames_ret
     np_data = np_data.reshape(frames_ret, num_channels)
     
@@ -105,12 +111,12 @@ def OnChannelData(x, cbHandle, numSamples):
     
     if peaks_only:
        
-        if nb_buffers < args.num_buffers: # Initial buffers are held together to allow the filtering to work, they are not sent
-            tstart = nb_buffers*args.buffer_size
+        if nb_buffers < num_init_buffers: # Initial buffers are held together to allow the filtering to work, they are not sent
+            tstart = nb_buffers*buffer_size
             buffered_data[tstart:tstart+frames_ret] = filtered_traces
-        elif nb_buffers == args.num_buffers:
+        elif nb_buffers == num_init_buffers:
             thresholds[:] = np.median(np.abs(buffered_data - np.median(buffered_data, 0)), 0)
-            thresholds[:] *= args.threshold
+            thresholds[:] *= threshold_multiplier
         else:
             peaks = {}
             n_peaks = 0
@@ -125,12 +131,12 @@ def OnChannelData(x, cbHandle, numSamples):
             socket.send_string(json.dumps(packet, cls=Encoder))    
     else:
         # Ugly logic to not break things. Of course one could calculate peaks before and use continue keywords
-        if nb_buffers < args.num_buffers: # Initial buffers are held together to allow the filtering to work, they are not sent
-            tstart = nb_buffers*args.buffer_size
+        if nb_buffers < num_init_buffers: # Initial buffers are held together to allow the filtering to work, they are not sent
+            tstart = nb_buffers*buffer_size
             buffered_data[tstart:tstart+frames_ret] = filtered_traces
-        elif nb_buffers == args.num_buffers:
+        elif nb_buffers == num_init_buffers:
             thresholds[:] = np.median(np.abs(buffered_data - np.median(buffered_data, 0)), 0)
-            thresholds[:] *= args.threshold
+            thresholds[:] *= threshold_multiplier
         else:
             peaks = {}
             n_peaks = 0
@@ -156,124 +162,151 @@ parser = argparse.ArgumentParser(
                     description='Record the MCS device to disk and send buffers via TCP')
 
 # parser.add_argument('filename')
-parser.add_argument('--filename', required=True, help='Path to the dump file for raw data')
-parser.add_argument('-ip', default='127.0.0.1', dest='ip')
-parser.add_argument('-p', '--port', default=1234, dest='port', type=int)
-parser.add_argument('-b', '--buffer', default=1024, dest='buffer_size', type=int)
-parser.add_argument('-s', '--sampling', default=20000, dest='sampling_rate', type=int)
-parser.add_argument('-t', '--threshold', default=26, dest='threshold', type=int)
-parser.add_argument('-n', '--num_buffers', default=10, dest='num_buffers', type=int)
-parser.add_argument('-e', '--exclude_sweep_ms', default=2, dest='sweep', type=int)
+parser.add_argument('--filename', required=True, 
+                    help='Path to the dump file for raw data')
+parser.add_argument('-ip', default='127.0.0.1', dest='ip', 
+                    help='IP address of the linux machine to send the data to')
+parser.add_argument('-p', '--port', default=1234, dest='port', type=int,
+                    help='Port number to send the data to')
+parser.add_argument('-b', '--buffer_size', default=1024, dest='buffer_size', type=int,
+                    help='Size of the buffer to send')
+parser.add_argument('-s', '--sampling', default=20000, dest='sampling_rate', type=int,
+                    help='Sampling rate of the MEA')
+parser.add_argument('-t', '--threshold_multiplier', default=26, dest='threshold_multiplier', type=int, 
+                    help='Multiplier of the median of the frist num_init_buffers to determine the threshold for peaks')
+parser.add_argument('-n', '--num_init_buffers', default=10, dest='num_init_buffers', type=int,
+                    help='Number of buffers to use for the initial threshold calculation. They are not sent.')
+parser.add_argument('-e', '--exclude_sweep_ms', default=2, dest='sweep', type=int,
+                    help='Time in ms to exclude peaks from each other')
+parser.add_argument('--test', '-T', action='store_true', dest='testmode', 
+                    help='Set test mode to true - no connection attempted to MEA')
 
 peaks_only = False
 do_filtering = False
 
-args = parser.parse_args()
+args              = parser.parse_args()
+testmodeMEA       = args.testmode
+samplingrate      = args.sampling_rate
+buffer_size       = args.buffer_size
+num_init_buffers  = args.num_init_buffers
+threshold_multiplier         = args.threshold_multiplier
+sweep             = args.sweep
+linux_ip          = args.ip
+linux_port        = args.port
+rawdata_filename  = args.filename
+rawdata_path      = Path(rawdata_filename)
 
 context = zmq.Context()
 #socket = context.socket(zmq.STREAM)
 #socket.bind(f'tcp://{args.ip}:{args.port}')
-
 socket = context.socket(zmq.PUSH)
-socket.connect(f"tcp://{args.ip}:{args.port}")
-device = CMeaDeviceNet(McsBusTypeEnumNet.MCS_USB_BUS);
+socket.connect(f"tcp://{linux_ip}:{linux_port}")
 
 
 ### We create the file to dump the recording as a raw binary file
-rawdata_filename = Path(args.filename)
-if rawdata_filename.exists():
-    import os
-    os.remove(rawdata_filename)
-data_file = open(args.filename, 'wb')
+if rawdata_path.exists():
+    os.remove(rawdata_path)
+data_file = open(rawdata_filename, 'wb')
 
 ### Definition of the lowpass filter
 filter_coeff = scipy.signal.iirfilter(
     3,
     200, 
-    fs=args.sampling_rate, 
+    fs=samplingrate, 
     analog=False, 
     btype='highpass', 
     ftype='butter', 
     output="ba"
 )
 
-deviceList = CMcsUsbListNet(DeviceEnumNet.MCS_DEVICE_USB)
-DataModeToSampleSizeDict = {
-    DataModeEnumNet.Unsigned_16bit : SampleSizeNet.SampleSize16Unsigned,
-    DataModeEnumNet.Signed_32bit :  SampleSizeNet.SampleSize32Signed
-}
+if not testmodeMEA:
+    device = CMeaDeviceNet(McsBusTypeEnumNet.MCS_USB_BUS)
 
-DataModeToSampleDstSizeDict = {
-    DataModeEnumNet.Unsigned_16bit : SampleDstSizeNet.SampleDstSize16,
-    DataModeEnumNet.Signed_32bit :  SampleDstSizeNet.SampleDstSize32
-}
+    deviceList = CMcsUsbListNet(DeviceEnumNet.MCS_DEVICE_USB)
+    DataModeToSampleSizeDict = {
+        DataModeEnumNet.Unsigned_16bit : SampleSizeNet.SampleSize16Unsigned,
+        DataModeEnumNet.Signed_32bit :  SampleSizeNet.SampleSize32Signed
+    }
+
+    DataModeToSampleDstSizeDict = {
+        DataModeEnumNet.Unsigned_16bit : SampleDstSizeNet.SampleDstSize16,
+        DataModeEnumNet.Signed_32bit :  SampleDstSizeNet.SampleDstSize32
+    }
+
+    if deviceList.Count == 0:
+        # raise NoDeviceFoundError("No device is connected, or it's turned off")
+        print("No device is connected, or it's turned off", file=sys.stderr)
+        sys.exit(1)
+    print("found %d devices" % (deviceList.Count))
+
+    for i in range(deviceList.Count):
+        listEntry = deviceList.GetUsbListEntry(i)
+        print("Device: %s   Serial: %s" % (listEntry.DeviceName,listEntry.SerialNumber))
+
+    dataMode = DataModeEnumNet.Unsigned_16bit;
+    #dataMode = DataModeEnumNet.Signed_32bit;
+
+    device.ChannelDataEvent += OnChannelData
+    device.ErrorEvent += OnError
+
+    device.Connect(deviceList.GetUsbListEntry(0))
+
+    device.SetSamplerate(samplingrate, 1, 0);
+
+    miliGain = device.GetGain();
+    voltageRanges = device.HWInfo.GetAvailableVoltageRangesInMicroVoltAndStringsInMilliVolt(miliGain);
+    for i in range(0, len(voltageRanges)):
+        print("(" + str(i) + ") " + voltageRanges[i].VoltageRangeDisplayStringMilliVolt);
+
+    device.SetVoltageRangeByIndex(0, 0);
+    device.SetDataMode(dataMode, 0)
+    #device.SetNumberOfChannels(256)
+    device.EnableDigitalIn(Boolean(False), 0)
+    device.EnableChecksum(False, 0)
+
+    block = device.GetChannelsInBlock(0);
+
+    print("Channels in Block: ", block)
+
+    if dataMode == DataModeEnumNet.Unsigned_16bit:
+        mChannels = device.GetChannelsInBlock(0)
+    else: # dataMode == DataModeEnumNet.Signed_32bit
+        mChannels = device.GetChannelsInBlock(0) // 2;
+    print("Number of Channels: ", mChannels)
+
+    global nb_buffers
+    nb_buffers = 0
+    trg_ch_id  = 126
+    thresholds = np.zeros(mChannels, dtype=np.float32)
+    exclude_sweep_ms = int(samplingrate * sweep * 1e-3)
+    # This gets updated with the first buffer_size buffers acquired from the MEA so that the scpipy filtering can work
+    buffered_data = np.zeros((num_init_buffers*buffer_size, mChannels), dtype=np.uint16)
 
 
-if deviceList.Count == 0:
-    # raise NoDeviceFoundError("No device is connected, or it's turned off")
-    print("No device is connected, or it's turned off", file=sys.stderr)
-    sys.exit(1)
-print("found %d devices" % (deviceList.Count))
+    device.ChannelBlock.SetSelectedData(  
+        mChannels  , buffer_size * 10, buffer_size , DataModeToSampleSizeDict[dataMode], DataModeToSampleDstSizeDict[dataMode], block)
 
-for i in range(deviceList.Count):
-    listEntry = deviceList.GetUsbListEntry(i)
-    print("Device: %s   Serial: %s" % (listEntry.DeviceName,listEntry.SerialNumber))
+else:
+    print("Acquisition launched in TEST mode - no connection to MEA")
 
-dataMode = DataModeEnumNet.Unsigned_16bit;
-#dataMode = DataModeEnumNet.Signed_32bit;
-
-device.ChannelDataEvent += OnChannelData
-device.ErrorEvent += OnError
-
-device.Connect(deviceList.GetUsbListEntry(0))
-
-Samplingrate = args.sampling_rate;
-device.SetSamplerate(Samplingrate, 1, 0);
-
-miliGain = device.GetGain();
-voltageRanges = device.HWInfo.GetAvailableVoltageRangesInMicroVoltAndStringsInMilliVolt(miliGain);
-for i in range(0, len(voltageRanges)):
-    print("(" + str(i) + ") " + voltageRanges[i].VoltageRangeDisplayStringMilliVolt);
-
-device.SetVoltageRangeByIndex(0, 0);
-device.SetDataMode(dataMode, 0)
-#device.SetNumberOfChannels(256)
-device.EnableDigitalIn(Boolean(False), 0)
-device.EnableChecksum(False, 0)
-
-block = device.GetChannelsInBlock(0);
-
-print("Channels in Block: ", block)
-callbackThreshold = args.buffer_size
-
-
-if dataMode == DataModeEnumNet.Unsigned_16bit:
-    mChannels = device.GetChannelsInBlock(0)
-else: # dataMode == DataModeEnumNet.Signed_32bit
-    mChannels = device.GetChannelsInBlock(0) // 2;
-print("Number of Channels: ", mChannels)
-
-global nb_buffers
-nb_buffers = 0
-trg_ch_id  = 126
-thresholds = np.zeros(mChannels, dtype=np.float32)
-exclude_sweep_ms = int(args.sampling_rate * args.sweep * 1e-3)
-# This gets updated with the first buffer_size buffers acquired from the MEA so that the scpipy filtering can work
-buffered_data = np.zeros((args.num_buffers*args.buffer_size, mChannels), dtype=np.uint16)
-
-
-device.ChannelBlock.SetSelectedData(  
-    mChannels  , callbackThreshold * 10, callbackThreshold, DataModeToSampleSizeDict[dataMode], DataModeToSampleDstSizeDict[dataMode], block)
+    # test_packet = np.load('test_packet.npy', allow_pickle=True).item()
 
 try:
     with open("signal_file.txt", "w") as f:
         f.write("Signal to launch the executable")
         print('Signal file to launch DMD written')
-    device.StartDacq()
-    # time.sleep(20)
-    while True:
-        time.sleep(1)
-        # print('Still alive...')
+    
+    if not testmodeMEA:
+        device.StartDacq()
+        # time.sleep(20)
+        while True:
+            time.sleep(1)
+            # print('Still alive...')
+    if testmodeMEA:
+        # Send simulated packets
+        buffer_nb = 0
+        
+        packet = generate_packet(buffer_nb)
 
 except KeyboardInterrupt:
     pass
