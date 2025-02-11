@@ -61,7 +61,7 @@ n_trgs_img_tot_in_pair     = 0
 # gray_trigs_count     = 0
 detected_triggers_idx_tot = np.array([])
 detected_triggers_idx     = np.array([])
-start_char = ""
+# start_char = ""
 
 trg_close_to_end_flag_prev_bf = False # Flag to signal if the last trigger of the previous buffer was close to the end of the buffer
 
@@ -106,6 +106,18 @@ prev_was_relevant_flag = True  # Flag to signal if the last packet was not relev
 
 
 try:
+
+    '''
+    This while should 
+    - define a new ImgPair
+    - listen for packets and update ImgPair values until sufficient triggers are detected
+    - fit the GP and send the image ID to the client via VEC
+    - wait for the client to confirm VEC reception
+    
+    
+    
+    
+    '''
     while not threadict['global_stop_event'].is_set():
         ''' The client is sending packets (dictionaries) with the following structure:
         {'buffer_nb': 10, 'n_peaks': 0,'peaks': {'ch_nb from 0 to 255': np.array(shape=n of peaks in buffer with 'timestamp') } }'}}
@@ -127,12 +139,6 @@ try:
             'plot_counter_for_image'     : plot_counter_for_image,
         }
         
-        # if pair_img_counter > loop_counter_prev:
-        #     print(f"\nPrevious loop took: {time.time()-start_times['while_start']:.3f} seconds from the while start")
-        #     print(f"Previous loop took: {time.time()-start_times['last_rel_packet']:.3f} seconds from the last relevant packet")
-        #     print(f"================================================[ {pair_img_counter} Img ]================================================")
-        #     loop_counter_prev = pair_img_counter
-
 
         # Print the loop counter every time it changes ( every time a new image pair is treated )
         loop_counter_prev = print_img_pair_counter(pair_img_counter, loop_counter_prev, start_times)
@@ -155,32 +161,6 @@ try:
 
         # To do this, check the trigger channel (127 on the MEA, so 126 here) it is above a certain threshold ( ~ 5.2*1e5)
         # If the buffer never crosses the threshold, discard it
-
-        # if packet['trg_raw_data'].max() < trg_threshold:
-        #     consecutive_relevant_buffs = 0
-        #     n_trgs_tot_in_pair         = 0
-        #     # gray_trigs_count     = 0
-        #     detected_triggers_idx_tot = np.array([])
-        #     detected_triggers_idx     = np.array([])
-            
-        #     plot_counter_for_image     = 0 # For counting how many times we plotted the buffers in a relevant buffer streak
-        #     print(f'Packet {packet["buffer_nb"]:>5} received: Not relevant', end="\r")
-        #     # start_char = "\n"
-        #     prev_was_relevant_flag = True
-        #     continue
-        # # else:
-        # # print(f'{start_char}Packet {packet["buffer_nb"]:>5} received: Relevant', end="")
-        # # start_times['last_rel_packet'] = time.time()
-        # # consecutive_relevant_buffs += 1
-        # # start_char = ""
-
-        # prev_was_relevant_flag = False
-        # if prev_was_relevant_flag: start_char = "\n"
-        
-        # print(f'{start_char}Packet {packet["buffer_nb"]:>5} received: Relevant', end="")
-        # start_times['last_rel_packet'] = time.time()
-        # consecutive_relevant_buffs += 1
-        # start_char = ""
 
         isrelevant            = is_relevant(packet)
         prev_was_relevant_flag = print_relevance_of_packet( 
@@ -205,11 +185,7 @@ try:
         if n_trgs_buffer == 0:
             print(f"\nNo triggers detected in buffer {packet['buffer_nb']}, continue...\n")
             continue
-        
-        # Make a list of all the detected triggers indexes. 
-        # They go over the buffer size
-        detected_triggers_idx_tot = np.append(detected_triggers_idx_tot, detected_triggers_idx + consecutive_relevant_buffs*buffer_size)
-        
+                
         # endregion
 
         # region _________ Run sanity check on the timing of the detected triggers ________
@@ -236,8 +212,8 @@ try:
 
         # region _________ Plot the received signal around the detected triggers _________
 
-        plot_counter_for_image = update_plot( 
-            packet, ch_id, ax, fig, lines, consecutive_relevant_buffs, plot_counter_for_image, max_lines=100)
+        # plot_counter_for_image = update_plot( 
+            # packet, ch_id, ax, fig, lines, consecutive_relevant_buffs, plot_counter_for_image, max_lines=100)
 
         # endregion
 
@@ -249,8 +225,10 @@ try:
                 # logging.info(f"Trigger close to the start detected in buffer {packet['buffer_nb']}")
 
             if (trg_close_to_end_flag_prev_bf and trg_close_to_start_flag):
-                logging.info(f"Buffer {packet['buffer_nb']} detected a trigger close to the start, and the previous did so close to the end, reducing n_trgs_buffer: {n_trgs_buffer} by 1")
-                logging.info(f"Trigger number reduced by one for buffer {packet['buffer_nb']}")
+                with threadict['print_lock']:
+                    print(f'''\nBuffer {packet['buffer_nb']} detected a trigger close to the start, 
+                                and the previous did so close to the end, reducing n_trgs_buffer: {n_trgs_buffer} by 1''')
+                    print(f"\nTrigger number reduced by one for buffer {packet['buffer_nb']}")
                 n_trgs_buffer -= 1 
                 detected_triggers_idx = detected_triggers_idx[1:]
         
@@ -259,6 +237,10 @@ try:
         #endregion
         
         n_trgs_tot_in_pair += n_trgs_buffer
+
+        # Make a list of all the detected triggers indexes. 
+        # They go over the buffer size
+        detected_triggers_idx_tot = np.append(detected_triggers_idx_tot, detected_triggers_idx + consecutive_relevant_buffs*buffer_size)
 
         if n_trgs_tot_in_pair != detected_triggers_idx_tot.shape[0]:
             raise ValueError(f"\n   Error: n_trgs_tot_in_pair:{n_trgs_tot_in_pair} = detected_triggers_idx_tot.shape[0]: {detected_triggers_idx_tot.shape[0]} During buffer {packet['buffer_nb']}")
@@ -325,12 +307,18 @@ try:
         if n_trgs_img_tot_in_pair < max_img_trgs:
             print(f" Natural: {n_trgs_img_tot_in_pair:>2} trgs <= {max_img_trgs}, waiting...",)
             continue
+
+        # _____________________________ Enough natural triggers presented _____________________________
+
+
         if n_trgs_img_tot_in_pair > max_img_trgs:
             print(f"   Best image is being computed...",)
             continue
 
+        
 
-        # _____________________________ Enough natural triggers presented _____________________________
+
+
 
 
 
@@ -374,12 +362,6 @@ try:
 
         # region ________ Wait for the DMD to turn off or shutdown ________
 
-        ############# BUG? #############
-
-        # while threadict['DMD_stopped_event'].is_set():
-        #     print(f"\nClient did not yet confirm DMD off")
-        #     time.sleep(1)
-
         while not threadict['DMD_stopped_event'].is_set():
             print(f"\nClient did not yet confirm DMD off")
             time.sleep(1)
@@ -414,7 +396,7 @@ try:
         # continue
 
     else:
-        print("\nStop event set, server is shutting down...")
+        print("\nGlobal stop event set, server is shutting down...")
         pass
 except KeyboardInterrupt:
     print("\n\nKeyInterrupted: Server is shutting down...")
