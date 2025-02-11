@@ -39,10 +39,11 @@ n_imgs_dataset   = 70  # How many images in the dataset
 signal_file = "signal_file.txt"  # Signal file that ort_reader writes to allow DMD to start
 
 # MEA parameters
-buffer_size    = "1024"
+buffer_size    = 1024
 acq_freq       = 20000
 trigger_freq   = 30
 trg_threshold  = 40000
+trg_diff_threshold = 2000 
 
 # Acquisition channel ( chosen unit on the MEA )
 ch_id = 53
