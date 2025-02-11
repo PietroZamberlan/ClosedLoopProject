@@ -47,6 +47,7 @@ buffer_size    = 1024
 acq_freq       = 20000
 trigger_freq   = 30
 trg_threshold  = 40000
+trg_diff_threshold = 2000 
 
 # Acquisition channel ( chosen unit on the MEA )
 ch_id = 53
