@@ -189,7 +189,7 @@ testmodeMEA       = args.testmode
 samplingrate      = args.sampling_rate
 buffer_size       = args.buffer_size
 num_init_buffers  = args.num_init_buffers
-threshold_multiplier         = args.threshold_multiplier
+threshold_multiplier = args.threshold_multiplier
 sweep             = args.sweep
 linux_ip          = args.ip
 linux_port        = args.port
@@ -305,7 +305,7 @@ try:
     if testmodeMEA:
         # Send simulated packets
         buffer_nb = 0
-        
+
         packet = generate_packet(buffer_nb)
 
 except KeyboardInterrupt:

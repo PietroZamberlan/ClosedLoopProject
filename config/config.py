@@ -1,6 +1,6 @@
 
-# testmode = True
-testmode = False
+testmode = True
+# testmode = False
 
 WINDOWS_OLD_MACHINE_IP   = '172.17.19.233'
 LINUX_IP                 = "172.17.12.200"
@@ -20,8 +20,6 @@ ORT_READER_PATH = r"C:\Users\user\ClosedLoopProject\src\Win_side\ort_reader.py"
 timeout_vec         = 6 # seconds
 timeout_dmd_off_rcv = 5
 
-# Main parameters
-electrode_info_path = '/data/electrode_initial_infos'
 
 
 # DMD executable parameters
@@ -41,8 +39,10 @@ max_gray_trgs    = 10
 max_img_trgs     = 60
 ending_gray_trgs = 20
 
-n_imgs_dataset   = 70  # How many images in the dataset
 
+# Image dataset parameters
+n_imgs_dataset   = 70  # How many images in the dataset
+nat_img_px_nb    = 108
 
 # MEA and DMD parameters
 signal_file = "signal_file.txt"  # Signal file that ort_reader writes to allow DMD to start
@@ -52,7 +52,27 @@ buffer_size    = 1024
 acq_freq       = 20000
 trigger_freq   = 30
 trg_threshold  = 40000
-trg_diff_threshold = 2000 
+trg_diff_threshold = 2000
+threshold_multiplier_init = 8 
 
 # Acquisition channel ( chosen unit on the MEA )
 ch_id = 53
+
+# Initial hyperparameters
+eps_0x_init  = 54
+eps_0y_init  = 54
+beta_init    = 0.1
+rho_init     = 0.05
+Amp_init     = 0.1
+sigma_0_init = 0.1
+
+
+
+
+
+
+
+
+
+
+
