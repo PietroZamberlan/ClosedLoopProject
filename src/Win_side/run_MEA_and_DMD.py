@@ -48,7 +48,8 @@ input_data_DMD = "\n".join(exe_params)+"\n"
 
 # ort reader parameters
 ort_reader_params = ["-ip", LINUX_IP, "--port", PULL_SOCKET_PACKETS_PORT, 
-                     "--buffer_size", f'{buffer_size}', "--filename", raw_data_file_path]
+                     "--buffer_size", f'{buffer_size}', '--threshold_multiplier', f'{threshold_multiplier}', 
+                       "--filename", raw_data_file_path]
 
 # Listening socket
 context     = zmq.Context()
