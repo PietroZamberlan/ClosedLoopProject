@@ -39,8 +39,6 @@ class Decoder(json.JSONDecoder):
             return obj['__bytes__'].encode(obj['__encoding__'])
         return obj
 
-
-
 def count_triggers( trigger_ch_sequence, trigger_diff_threshold=2000):
 
     '''Counts the triggers in the provided array, tipically an aquired buffer.
@@ -85,14 +83,21 @@ def count_triggers( trigger_ch_sequence, trigger_diff_threshold=2000):
 
     return n_triggers, detected_trigger_idx, trg_close_to_end, trg_close_to_start
 
-def update_fit(new_spike_count, print_lock):
+def update_model(new_spike_count, current_img_id, current_model, print_lock):
     '''
-    Update the GP variational (m,V) and likelihood (A, lambda0) parameters using the latest revceived spike count
-    return the id of the new, most informative image to display next
+    Fits a new model adding a new image - spike count pair to current_model
+
+    Updates the GP variational (m,V) and likelihood (A, lambda0) parameters. 
+    Does not update the hyperparameters (kernel parameters) which are fixed.
+    
+    Returns:
+      updated_model: dict - The updated model parameters
     
     Args:
-        new_spike_count (int): The number of spikes received after the image was displayed ( in the relevant time interval T )
-        result_queue : the queue to store the results of the fit 
+        new_spike_count (int): The number of spikes received after the image was displayed
+        current_img_id (int):  The ID of the image that was displayed
+        current_model (dict):  The current model parameters 
+        print_lock (threading.Lock): The lock for printing to the console, since this functon is called by a thread
     '''
     start_time = time.time()
     with print_lock: print(f"\n...Fit Thread: Starting fit using {new_spike_count} spikes...")
@@ -100,16 +105,16 @@ def update_fit(new_spike_count, print_lock):
     # with print_lock:
         # print(f"\n...Thread: New_spike_count is on device: {new_spike_count.device}")
 
-    # Extracting randomly the new image ID for now
-    result = new_spike_count*2
-    # result = np.random.randint(0, 100)
-    time.sleep(1)
-    with print_lock: print(f"\n...Fit Thread: Fit finished in {time.time()-start_time:.2f}s, result is imdID {result}...")
-    return result.to('cpu')
+    
 
-def threaded_fit_end_queue_img(new_spike_count, threadict, ):
+
+    time.sleep(1)
+    with print_lock: print(f"\n...Fit Thread: Fit finished in {time.time()-start_time:.2f}s,")
+    return updated_model
+
+def threaded_fit_end_queue_img(new_spike_count, current_img_id, current_model, threadict, ):
     '''
-    Updates the fit and adds the new image ID to the queue
+    Updates the fit with the last image spike count, estimate the most useful new image and adds its ID to the queue
 
     Args:
         new_spike_count (int): The number of spikes for the last image being presented
@@ -119,39 +124,42 @@ def threaded_fit_end_queue_img(new_spike_count, threadict, ):
     Sets:
         fit_finished_event: The event to signal that the fit has finished and the new image ID is in the queue
     '''
-    imgID = update_fit(new_spike_count, threadict['print_lock'])
-    threadict['img_ID_queue'].put(imgID)
+    updated_model = update_model(new_spike_count, current_img_id, current_model, threadict['print_lock'])
+
+    img_id        = find_most_useful_img(updated_model, threadict['print_lock'])
+
+    threadict['img_id_queue'].put(img_id)
     with threadict['print_lock']:
-        print(f"\n...Fit Thread: imdID {imgID} added to the queue: {imgID}", end="\n")
+        print(f"\n...Fit Thread: imdID {img_id} added to the queue: {img_id}", end="\n")
     threadict['fit_finished_event'].set()
     return
 
-def generate_vec_file(chosen_img_ID, rndm_img_id, max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10, save_file=None):
+def generate_vec_file(chosen_img_id, rndm_img_id, max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10, save_file=None):
     """
     Generate the VEC file for the chosen image ID and the random image ID., with the following structure:
     0 {max_total_frames} 0 0 0
     0 0 0 0 0               [max_gray_trgs lines]
-    0 {chosen_img_ID} 0 0 0 [max_img_trgs lines]
+    0 {chosen_img_id} 0 0 0 [max_img_trgs lines]
     0 0 0 0 0               [max_grey_trgs lines]
     0 {rndm_img_id} 0 0 0   [max_img_trgs lines]
     0 0 0 0 0               [ending_gray_trgs lines]
 
     Parameters:
-    img_ID (int): The image ID.
+    img_id (int): The image ID.
     rndm_img_id (int): The random image ID.
     max_gray_trgs (int): The number of lines representing the STARTING gray image.
     ending_gray_trgs (int): The number of lines representing the ENDING gray image.
     max_img_trgs (int): The number of lines representing triggers of the natural image.
     """
 
-    file_path = f'{REPO_DIR}/src/DMD/saved/vec_file_{chosen_img_ID}.txt'
+    file_path = f'{REPO_DIR}/src/DMD/saved/vec_file_{chosen_img_id}.txt'
     lines = []
 
     # Write the first line
     lines.append(f"0 {max_gray_trgs+max_img_trgs+max_gray_trgs+max_img_trgs+ending_gray_trgs} 0 0 0\n")
     # Write the following lines
     for _ in range(max_gray_trgs):     lines.append(f"0 0 0 0 0\n")
-    for _ in range(max_img_trgs):      lines.append(f"0 {chosen_img_ID} 0 0 0\n")            
+    for _ in range(max_img_trgs):      lines.append(f"0 {chosen_img_id} 0 0 0\n")            
     for _ in range(max_gray_trgs):     lines.append(f"0 0 0 0 0\n")  
     for _ in range(max_img_trgs):      lines.append(f"0 {rndm_img_id} 0 0 0\n")            
     for _ in range(ending_gray_trgs):  lines.append(f"0 0 0 0 0\n")  
@@ -163,7 +171,7 @@ def generate_vec_file(chosen_img_ID, rndm_img_id, max_gray_trgs=10, max_img_trgs
               
     return file_content, file_path
 
-def threaded_vec_send_and_confirm( chosen_img_ID, rndm_img_id, threadict, req_socket_vec,  max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10):
+def threaded_vec_send_and_confirm( chosen_img_id, rndm_img_id, threadict, req_socket_vec,  max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10):
     '''
     Generates the vec file.
     Sends to the client the VEC file corresponding the the chosen image ID and wait for confirmation. 
@@ -175,10 +183,10 @@ def threaded_vec_send_and_confirm( chosen_img_ID, rndm_img_id, threadict, req_so
         vec_failure_event:      to True when the client does not confirm the VEC file reception
     '''
     
-    with threadict['print_lock']: print(f"\n...VEC Thread: Generating VEC file for image ID: {chosen_img_ID}", end="\n")
-    vec_content, vec_path = generate_vec_file(chosen_img_ID=chosen_img_ID, rndm_img_id=rndm_img_id, max_gray_trgs=max_gray_trgs,
+    with threadict['print_lock']: print(f"\n...VEC Thread: Generating VEC file for image ID: {chosen_img_id}", end="\n")
+    vec_content, vec_path = generate_vec_file(chosen_img_id=chosen_img_id, rndm_img_id=rndm_img_id, max_gray_trgs=max_gray_trgs,
                                                max_img_trgs=max_img_trgs, ending_gray_trgs=ending_gray_trgs, save_file=False )
-    with threadict['print_lock']: print(f"\n...VEC Thread: Sending VEC file for image ID: {chosen_img_ID}", end="\n")
+    with threadict['print_lock']: print(f"\n...VEC Thread: Sending VEC file for image ID: {chosen_img_id}", end="\n")
 
     # Send the VEC file to the client and wait for confirmation
     req_socket_vec.send_string(vec_content)
@@ -279,7 +287,7 @@ def launch_dmd_off_sender(req_socket_dmd, threadict):
     DMD_off_sender_thread.start()
     return DMD_off_sender_thread
 
-def launch_computation_thread( n_ch_spikes, threadict):
+def launch_computation_thread( n_ch_spikes, current_img_id, current_model, threadict):
     '''
     Launches the thread that fits the GP and adds the new image ID to the queue
     '''
@@ -287,7 +295,7 @@ def launch_computation_thread( n_ch_spikes, threadict):
     print(f"\nStarting the computation thread with {n_ch_spikes} peaks")
     threadict['fit_finished_event'].clear()  
     computation_thread = threading.Thread(target=threaded_fit_end_queue_img, 
-                                            args=(n_ch_spikes, threadict, ))
+                                            args=(n_ch_spikes, current_img_id, current_model, threadict, ))
     computation_thread.start()
     return computation_thread
 
@@ -571,7 +579,7 @@ def setup_lin_side_sockets():
 
 def setup_thread_vars():
     # Thread variables
-    img_ID_queue = queue.Queue()
+    img_id_queue = queue.Queue()
 
     fit_finished_event         = threading.Event() # Event to signal when the computation thread is finished
     vec_confirmation_event     = threading.Event()
@@ -590,7 +598,7 @@ def setup_thread_vars():
         "DMD_stopped_event": DMD_stopped_event,
         "global_stop_event": global_stop_event,
 
-        "img_ID_queue"     : img_ID_queue,
+        "img_id_queue"     : img_id_queue,
         "dmd_off_set_time" : None,
         "print_lock"       : print_lock,
         "set_time_lock"    : set_time_lock,

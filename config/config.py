@@ -8,7 +8,8 @@ PULL_SOCKET_PACKETS_PORT = '5555'
 REQ_SOCKET_VEC_PORT      = '5557'
 REQ_SOCKET_DMD_PORT      = '5558'
 
-Win_side_path = '.\\src\\Win_side\\' 
+Win_side_path = '.\\src\\Win_side\\'
+
 
 # Define the executables paths
 DMD_EXE_PATH    = r"C:/Users/user/Repositories/cppalp/x64/Release/film.exe"
@@ -18,6 +19,10 @@ ORT_READER_PATH = r"C:\Users\user\ClosedLoopProject\src\Win_side\ort_reader.py"
 # Theaded functions parameters
 timeout_vec         = 6 # seconds
 timeout_dmd_off_rcv = 5
+
+# Main parameters
+electrode_info_path = '/data/electrode_initial_infos'
+
 
 # DMD executable parameters
 pietro_dir_DMD = "21"
