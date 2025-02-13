@@ -1,3 +1,0 @@
-[submodule "Gaussian-Processes"]
-	path = Gaussian-Processes
-	url = git@github.com:retinal-information-processing-lab/gaussian_processes.git
