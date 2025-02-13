@@ -1,24 +1,18 @@
 import zmq
-import os
-import sys
-import torch
 import threading
 import time
 import json
 import base64
 import numpy as np
 import queue
-import logging
 import matplotlib.pyplot as plt
 
-CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
-REPO_DIR    = os.path.join(CURRENT_DIR, '../../')
-sys.path.insert(0, os.path.abspath(REPO_DIR))
 
 # Import the configuration file
 from config.config import *
+import utils as GPutils # ( importing utils from the Gaussian-Processes repo folder )
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 print(f"Device: {DEVICE} from tcp_utils")
 
@@ -82,35 +76,6 @@ def count_triggers( trigger_ch_sequence, trigger_diff_threshold=2000):
     detected_trigger_idx = detected_trigger_idx.astype(int)
 
     return n_triggers, detected_trigger_idx, trg_close_to_end, trg_close_to_start
-
-def update_model(new_spike_count, current_img_id, current_model, print_lock):
-    '''
-    Fits a new model adding a new image - spike count pair to current_model
-
-    Updates the GP variational (m,V) and likelihood (A, lambda0) parameters. 
-    Does not update the hyperparameters (kernel parameters) which are fixed.
-    
-    Returns:
-      updated_model: dict - The updated model parameters
-    
-    Args:
-        new_spike_count (int): The number of spikes received after the image was displayed
-        current_img_id (int):  The ID of the image that was displayed
-        current_model (dict):  The current model parameters 
-        print_lock (threading.Lock): The lock for printing to the console, since this functon is called by a thread
-    '''
-    start_time = time.time()
-    with print_lock: print(f"\n...Fit Thread: Starting fit using {new_spike_count} spikes...")
-    new_spike_count = torch.tensor(new_spike_count, device=DEVICE)
-    # with print_lock:
-        # print(f"\n...Thread: New_spike_count is on device: {new_spike_count.device}")
-
-    
-
-
-    time.sleep(1)
-    with print_lock: print(f"\n...Fit Thread: Fit finished in {time.time()-start_time:.2f}s,")
-    return updated_model
 
 def threaded_fit_end_queue_img(new_spike_count, current_img_id, current_model, threadict, ):
     '''
@@ -561,6 +526,16 @@ def reset_image_pairs_variables( image_pair_values ):
     # return consecutive_relevant_buffs, n_trgs_tot_in_pair, detected_triggers_idx_tot, detected_triggers_idx, plot_counter_for_image
 
 def setup_lin_side_sockets():
+    '''
+    Sets up three sockets:
+    One for receiving packets
+
+    One for sending vec files
+
+    One for sending a DMD off signal
+
+    '''
+
     context = zmq.Context()
 
     # Create the listening socket as a server
@@ -638,9 +613,5 @@ def update_image_pair_values(image_pair_values, **kwargs):
             print(f"Key '{key}' not present in image_pair_values") 
             
     return image_pair_values
-
-
-
-
 
 

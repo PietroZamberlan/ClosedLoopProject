@@ -3,5 +3,10 @@
         "."
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src",
+        "/home/idv-eqs8-pza/IDV_code/ClosedLoopProject/Gaussian-Processes/Spatial_GP_repo"
+        ]
 }

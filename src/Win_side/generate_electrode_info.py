@@ -1,11 +1,12 @@
 import sys
 import os
-current_dir = os.path.dirname(os.path.realpath(__file__))
+# current_dir = os.path.dirname(os.path.realpath(__file__))
 
-print(f'current path: {current_dir}')
-repo_dir    = os.path.join(current_dir, '..\\..\\')
+# print(f'current path: {current_dir}')
+# repo_dir    = os.path.join(current_dir, '..\\..\\')
+# # repo_dir    = os.path.join(current_dir, '../../')
 
-sys.path.insert(0, os.path.abspath(repo_dir))
+# sys.path.insert(0, os.path.abspath(repo_dir))
 
 print(f"Repo dir: {repo_dir} from generate_electrode_info.py")
 
@@ -33,12 +34,7 @@ def generate_electrode_info(testmode ):
             'localker_amplitude'  : hyperparameter Amp, amplitude of the localker
             'localker_smoothness' : hyperparameter rho, smoothness in the localker
             'acosker_sigma_0'     : hyperparameter sigma_0 of the acosker
-            
 
-            
-
-            
-            
     """
 
     electrode_info = {}
@@ -77,12 +73,14 @@ def generate_electrode_info(testmode ):
     # if it exists add a numbe rto the file name
     electrode_info_filename = 'electrode_info.json'
     electrode_info_file_path = os.path.join( repo_dir, 'data\\electrode_info\\', electrode_info_filename)
+    # electrode_info_file_path = os.path.join( repo_dir, 'data/electrode_info/', electrode_info_filename)
 
     if os.path.exists(electrode_info_file_path):
         print(f'File {electrode_info_filename} already exists. Saving as a new file.')
         count_files = len([name for name in os.listdir(os.path.join(repo_dir, 'data')) if name.startswith('electrode_info') and name.endswith('.json')])
         electrode_info_filename = f'electrode_info_{count_files+1}.json'
         electrode_info_file_path = os.path.join( repo_dir, 'data\\', electrode_info_filename)
+        # electrode_info_file_path = os.path.join( repo_dir, 'data/', electrode_info_filename)
     
 
     with open(electrode_info_file_path, 'w') as f:
