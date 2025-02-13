@@ -2,12 +2,12 @@ import json
 
 from config.config     import *
 from src.TCP.tcp_utils import *
-import utils as GPutils # ( importing utils from the Gaussian-Processes repo folder )
+from gaussian_processes.Spatial_GP_repo import utils as GP_utils
 
 '''
 This utils should have all the functions used in the main.py script but also the ones related 
 to the modeling that dont do the heavy lifting of the GP training, inference and utility estimation
-(those come from GPutils)
+(those come from GP_utils)
 
 
 counting triggers -> tcp_utils.py
@@ -61,16 +61,16 @@ def model_from_electrode_info( electrode_info ):
     # region _____ Set hyp amd params ______
     theta = theta_from_electrode_info( electrode_info )
 
-    A        = torch.tensor(0.01)
+    A        = torch.tensor(A_init)
     logA     = torch.log(A)
-    lambda0  = torch.tensor(1.)
+    lambda0  = torch.tensor(lambda0_init)
 
-    hyperparams_tuple = GPutils.gen_hyp_tuple( theta, freeze_list=['Amp'], display_hyper=True )
-    f_params          = GPutils.set_f_params( logA, lambda0 )
+    hyperparams_tuple = GP_utils.gen_hyp_tuple( theta, freeze_list=['Amp'], display_hyper=True )
+    f_params          = GP_utils.set_f_params( logA, lambda0 )
     # endregion
 
     # region _____ Upload dataset with the recorded responses and generate idxs ______
-    _, _, idx_tuple  = GPutils.get_idx_for_training_testing_validation( 
+    _, _, idx_tuple  = GP_utils.get_idx_for_training_testing_validation( 
             X=[], R=[], ntrain=ntrain_init, ntilde=ntilde_init, ntest_lk=0)
 
     xtilde_idx, in_use_idx, remaining_idx, test_lk_idx = idx_tuple
@@ -81,7 +81,7 @@ def model_from_electrode_info( electrode_info ):
                     'nMstep':      nMstep_init,
                     'nEstep':      nEstep_init,
                     'nFparamstep': nFparamstep_init,
-                    'kernfun':     GPutils.kernfun,
+                    'kernfun':     GP_utils.kernfun,
                     'cellid':      cellid_init,
                     'n_px_side':   n_px_side_init,
                     'in_use_idx':  in_use_idx,     # Used idx for generating xtilde, referred to the whole X dataset
@@ -132,7 +132,6 @@ def model_from_electrode_info( electrode_info ):
     initial_STA_fig.suptitle(f'STA of cell: {cellid} - Initial hyperparameters')
 
     # endregion
-
 
 def update_model(new_spike_count, current_img_id, current_model, print_lock):
     '''

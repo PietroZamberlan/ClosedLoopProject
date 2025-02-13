@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 # Import the configuration file
 from config.config import *
-import utils as GPutils # ( importing utils from the Gaussian-Processes repo folder )
+from gaussian_processes.Spatial_GP_repo import utils as GP_utils
 
 # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

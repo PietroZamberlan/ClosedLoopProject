@@ -7,6 +7,7 @@
 
     "python.analysis.extraPaths": [
         "${workspaceFolder}/src",
-        "/home/idv-eqs8-pza/IDV_code/ClosedLoopProject/Gaussian-Processes/Spatial_GP_repo"
+        "${workspaceFolder}/gaussian_processes",
+        "${workspaceFolder}/gaussian_processes/Spatial_GP_repo/"
         ]
 }

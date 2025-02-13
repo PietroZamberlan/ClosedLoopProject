@@ -73,6 +73,10 @@ beta_init    = 0.1
 rho_init     = 0.05
 Amp_init     = 0.1
 sigma_0_init = 0.1
+# Initial link function parameters
+A_init       = 0.01
+lambda0_init = 1.
+
 
 # CUDA parameters
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -9,8 +9,6 @@ import logging
 from config.config import *
 from src.TCP.tcp_utils import *
 from src import main_utils
-import utils as GPutils # ( importing utils from the Gaussian-Processes repo folder )
-
 
 # endregion 
 def initial_listener_linux( electrode_info ):
