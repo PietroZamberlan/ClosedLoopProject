@@ -10,6 +10,10 @@ GP_REPO_DIR = REPO_DIR / 'gaussian_processes' / 'Spatial_GP_repo'
 testmode = True
 # testmode = False
 
+# Name of a try for the whole experiment. 
+# Its defined by the variables in this file
+session_name = 'session_1'   
+
 WINDOWS_OLD_MACHINE_IP   = '172.17.19.233'
 LINUX_IP                 = "172.17.12.200"
 PULL_SOCKET_PACKETS_PORT = '5555'
@@ -24,10 +28,16 @@ DMD_EXE_DIR     = r"C:/Users/user/Repositories/cppalp/x64/Release/"
 ORT_READER_PATH = r"C:\Users\user\ClosedLoopProject\src\Win_side\ort_reader.py"
 
 # Main parameters
-electrode_info_path    = REPO_DIR /'data'  / 'electrode_info' / 'electrode_info.json'
-img_dataset_path       = REPO_DIR / 'data' / 'img_dataset' / ''
+experiment_data_path   = REPO_DIR / 'data'                                # Data folder that does not change
+session_data_tcp_path  = REPO_DIR / 'src' / 'TCP' / 'data' / session_name # Data folder changing with sessions
+
+img_dataset_path       = experiment_data_path / 'img_dataset' 
 train_img_dataset_name = 'nat_img_train_dataset_PNAS.npy'
 test_img_dataset_name  = 'nat_img_test_dataset_PNAS.npy'
+
+electrode_info_path    = experiment_data_path  / 'electrode_info' / 'electrode_info.json'
+vec_path               = session_data_tcp_path / 'vec_files' 
+
 
 # Theaded functions parameters
 timeout_vec         = 6 # seconds
@@ -46,9 +56,9 @@ min_time_dmd_off = 3.5    # Min time to wait from the DMD off confirmation to be
 max_time_dmd_off = 7      # Maximum time from the confirmation of being off to be sure that it is not starting again ( The windows server is stopping )
 
 # DMD triggers and image correspondence parameters
-max_gray_trgs    = 10
-max_img_trgs     = 60
-ending_gray_trgs = 20
+n_gray_trgs        = 60
+n_img_trgs         = 60
+n_ending_gray_trgs = 20
 
 
 # Image dataset parameters
@@ -72,8 +82,8 @@ ch_id = 53
 # Initial hyperparameters
 eps_0x_init  = 54    # px
 eps_0y_init  = 54    # px
-beta_init    = 5     # px
-rho_init     = 5     # px
+beta_init    = 15     # px
+rho_init     = 15     # px
 Amp_init     = 0.1
 sigma_0_init = 0.1
 # Initial link function parameters

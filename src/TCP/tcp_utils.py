@@ -136,6 +136,8 @@ def generate_vec_file(chosen_img_id, rndm_img_id, max_gray_trgs=10, max_img_trgs
               
     return file_content, file_path
 
+
+
 def threaded_vec_send_and_confirm( chosen_img_id, rndm_img_id, threadict, req_socket_vec,  max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10):
     '''
     Generates the vec file.

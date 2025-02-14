@@ -45,7 +45,13 @@ def initial_listener_linux( electrode_info ):
     GP_utils.plot_hyperparams_on_STA( start_model, STA=None, ax=None )
 
     # - Generates a VEC file for the first 50 random images to show using the DMD
-    
+    vec_file = main_utils.generate_vec_file_updated(
+                active_img_ids = start_model['fit_parameters']['in_use_idx'],
+                rndm_img_ids   = torch.empty(0),
+                n_gray_trgs    = n_gray_trgs,
+                n_img_trgs     = n_img_trgs,
+                n_ending_gray_trgs = n_ending_gray_trgs,
+                save_file=True )
 
 
 

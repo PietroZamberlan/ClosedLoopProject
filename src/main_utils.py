@@ -1,5 +1,6 @@
 import json
-import pickle
+import os
+import shutil
 
 from config.config     import *
 from src.TCP.tcp_utils import *
@@ -194,6 +195,79 @@ def upload_natural_image_dataset( dataset_path ):
 
     return ( torch.tensor(X_train), torch.tensor(X_test) )
 
+def generate_vec_file_updated(active_img_ids, rndm_img_ids, 
+                              n_gray_trgs, n_img_trgs, n_ending_gray_trgs, 
+                              save_file=True):
+    """
+    Generate the VEC file for the chosen image IDs and the random image IDs,
+    with the following structure:
+    0 {total_frames} 0 0 0
+    for _ in range(n_active_imgs):
+        0 0 0 0 0                   [n_gray_trgs lines]
+        0 {ith_chosen_img_id} 0 0 0 [n_img_trgs lines]
+        0 0 0 0 0                   [max_grey_trgs lines]
+        0 {rndm_img_id} 0 0 0       [n_img_trgs lines]
+    0 0 0 0 0                   [n_gray_trgs lines]
+
+    If rndm_img_ids is None, the function will generate the VEC file for the active_img_ids only.
+
+    Parameters:
+    active_img_ids (int): The image IDs.
+    rndm_img_ids  (int): The random image IDs.
+    n_gray_trgs (int): The number of lines representing the STARTING gray image.
+    n_ending_gray_trgs (int): The number of lines representing the ENDING gray image.
+    n_img_trgs (int): The number of lines representing triggers of the natural image be it active or random
+
+    Returns:
+        file_content (str): The content of the VEC file.
+    """
+
+    n_active_imgs = active_img_ids.shape[0]
+    n_rndm_imgs   = rndm_img_ids.shape[0]    # either ==0 or ==n_active_imgs
+    if not ((n_active_imgs == n_rndm_imgs) or (n_rndm_imgs == 0)):
+        raise ValueError(f"The number of active ({n_active_imgs}) and random ({n_rndm_imgs}) images must either same or n_active and zero")
+
+    n_loops       = n_active_imgs
+    n_loop_frames =  n_gray_trgs+n_img_trgs
+    n_loop_frames += n_gray_trgs+n_img_trgs if n_rndm_imgs != 0 else 0
+    n_frames_tot  = n_loops * n_loop_frames + n_ending_gray_trgs
+
+    lines = []
+    # Write the lines
+    lines.append(f"0 {n_frames_tot} 0 0 0\n")
+    for _ in range(n_loops):
+        for _ in range(n_gray_trgs):       lines.append(f"0 0 0 0 0\n")
+        for img_id in active_img_ids:        lines.append(f"0 {img_id} 0 0 0\n")
+        if n_rndm_imgs != 0:            
+            for _ in range(n_gray_trgs):   lines.append(f"0 0 0 0 0\n")  
+            for rndm_img_id in rndm_img_ids: lines.append(f"0 {rndm_img_id} 0 0 0\n")
+    for _ in range(n_ending_gray_trgs):        lines.append(f"0 0 0 0 0\n")
+    file_content = ''.join(lines)
+
+    if save_file:
+        if n_rndm_imgs == 0:
+            file_name = f'VEC_start_model_{n_active_imgs}_imgs'
+        else:
+            file_name = f'VEC_img_id_{active_img_ids[0]}'
+        # Session name is in the vec_path in config.py
+        save_vec(file_content, dir_path=vec_path, file_name=file_name)
+              
+    return file_content
+
+def save_vec( vec_content, dir_path, file_name):
+
+    if not os.path.exists( dir_path ):
+        os.makedirs(dir_path)
+    else:
+        answer = input(f"Directory {dir_path} already exists. Overwrite? [y/N]: ")
+        if answer.strip().lower().startswith('y'):
+            shutil.rmtree(dir_path)
+            os.makedirs(dir_path)
+        else:
+            raise ValueError(f"Directory {dir_path} already exists. Exiting...")
+
+    with open(dir_path / file_name, 'w') as file: 
+        file.write(vec_content)
 
 
 

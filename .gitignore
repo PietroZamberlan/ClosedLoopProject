@@ -1,8 +1,9 @@
 # Pietro stuff
-src/TCP/saved/*
-src/DMD/saved/*
 jupyter_tests.ipynb
 toto.raw
+src/TCP/saved/*
+src/DMD/saved/*
+src/TCP/data/*
 data/*
 
 
