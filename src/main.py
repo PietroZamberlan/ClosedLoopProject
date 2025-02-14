@@ -1,6 +1,8 @@
 from config.config import *
 from src           import main_utils
-from src.TCP       import listener_linux, initial_listener_linux
+from src.TCP.initial_listener_linux import initial_listener_linux
+from src.TCP.listener_linux         import listener_linux
+
 
 
 def main():
@@ -46,7 +48,6 @@ def main():
     # Launch listener_linux.py process
     print("MAIN - Launching listener_linux.py process")
     final_model = listener_linux( initial_model )
-
 
 
 if __name__ == "__main__":

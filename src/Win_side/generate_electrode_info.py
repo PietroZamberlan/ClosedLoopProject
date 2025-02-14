@@ -1,17 +1,11 @@
-import sys
+
 import os
-# current_dir = os.path.dirname(os.path.realpath(__file__))
-
-# print(f'current path: {current_dir}')
-# repo_dir    = os.path.join(current_dir, '..\\..\\')
-# # repo_dir    = os.path.join(current_dir, '../../')
-
-# sys.path.insert(0, os.path.abspath(repo_dir))
-
-print(f"Repo dir: {repo_dir} from generate_electrode_info.py")
-
 import json
 from config.config import *
+
+
+print(f"Repo dir: {REPO_DIR} from generate_electrode_info.py")
+
 
 def generate_electrode_info(testmode ):
 
@@ -38,8 +32,9 @@ def generate_electrode_info(testmode ):
     """
 
     electrode_info = {}
-
+    print(f'Generating electrode info:')
     if testmode:
+        print('generate_electrode_info in TEST mode, values generated from config.py - Not saving to file')
         electrode_info['electrode_number']     = ch_id
         electrode_info['threshold_multiplier'] = threshold_multiplier_init
 
@@ -56,8 +51,8 @@ def generate_electrode_info(testmode ):
         electrode_info['RF_size'] = float(input(f'Hyperparameter beta\n   Enter the estimated rf size - in the {nat_img_px_nb}px by {nat_img_px_nb}px images set reference: '))
 
 
-    electrode_info['localker_amplitude']  = Amp_init
     electrode_info['localker_smoothness'] = rho_init
+    electrode_info['localker_amplitude']  = Amp_init
     electrode_info['acosker_sigma_0']     = sigma_0_init
 
 
@@ -69,24 +64,23 @@ def generate_electrode_info(testmode ):
         else:
             print(f'   {key}: {value:.0f}')
 
-    # check if file exists and save the electrode info
-    # if it exists add a numbe rto the file name
-    electrode_info_filename = 'electrode_info.json'
-    electrode_info_file_path = os.path.join( repo_dir, 'data\\electrode_info\\', electrode_info_filename)
-    # electrode_info_file_path = os.path.join( repo_dir, 'data/electrode_info/', electrode_info_filename)
 
-    if os.path.exists(electrode_info_file_path):
-        print(f'File {electrode_info_filename} already exists. Saving as a new file.')
-        count_files = len([name for name in os.listdir(os.path.join(repo_dir, 'data')) if name.startswith('electrode_info') and name.endswith('.json')])
-        electrode_info_filename = f'electrode_info_{count_files+1}.json'
-        electrode_info_file_path = os.path.join( repo_dir, 'data\\', electrode_info_filename)
-        # electrode_info_file_path = os.path.join( repo_dir, 'data/', electrode_info_filename)
-    
+    if not testmode:
+        # check if file exists and save the electrode info
+        # if it exists add a numbe rto the file name
+        electrode_info_filename = 'electrode_info.json'
+        electrode_info_file_path = REPO_DIR / 'data' / 'electrode_info' / electrode_info_filename
 
-    with open(electrode_info_file_path, 'w') as f:
-        json.dump(electrode_info, f)
-    
 
+        if os.path.exists(electrode_info_file_path):
+            print(f'File {electrode_info_filename} already exists. Saving as a new file.')
+            count_files = len([name for name in os.listdir(os.path.join(REPO_DIR, 'data')) if name.startswith('electrode_info') and name.endswith('.json')])
+            electrode_info_filename = f'electrode_info_{count_files+1}.json'
+            electrode_info_file_path = REPO_DIR / 'data' / electrode_info_filename
+
+        with open(electrode_info_file_path, 'w') as f:
+            json.dump(electrode_info, f)
+        
     return electrode_info
 
 

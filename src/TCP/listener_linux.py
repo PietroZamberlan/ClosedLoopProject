@@ -7,7 +7,7 @@ import logging
 # Import the configuration file
 from config.config import *
 from src.TCP.tcp_utils import *
-import utils as GPutils
+from gaussian_processes.Spatial_GP_repo import utils as GP_utils
 
 # endregion 
 def listener_linux( current_model ):

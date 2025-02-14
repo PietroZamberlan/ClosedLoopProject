@@ -67,10 +67,10 @@ threshold_multiplier_init = 8
 ch_id = 53
 
 # Initial hyperparameters
-eps_0x_init  = 54
-eps_0y_init  = 54
-beta_init    = 0.1
-rho_init     = 0.05
+eps_0x_init  = 54    # px
+eps_0y_init  = 54    # px
+beta_init    = 5     # px
+rho_init     = 5     # px
 Amp_init     = 0.1
 sigma_0_init = 0.1
 # Initial link function parameters

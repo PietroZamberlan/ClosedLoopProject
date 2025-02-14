@@ -32,7 +32,7 @@ def initial_listener_linux( electrode_info ):
     '''
 
     # Set up the context and the sockets
-    context, pull_socket_packets, req_socket_vec, req_socket_dmd = setup_lin_side_sockets()
+    # context, pull_socket_packets, req_socket_vec, req_socket_dmd = setup_lin_side_sockets()
     print("Init linux server is running and waiting for data stream...")
 
     # Set up the start_model given the electrode information
@@ -49,6 +49,7 @@ if __name__ == "__main__":
 
     print(" Starting listener_linux.py as main...")
 
-    electrode_info = main_utils.upload_electrode_info( electrode_info_path, print_info=True )
+    electrode_info = main_utils.upload_electrode_info( 
+        electrode_info_path, print_info=True, testmode = testmode )
     
     initial_listener_linux( electrode_info )
