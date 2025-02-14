@@ -35,11 +35,17 @@ def initial_listener_linux( electrode_info ):
     # context, pull_socket_packets, req_socket_vec, req_socket_dmd = setup_lin_side_sockets()
     print("Init linux server is running and waiting for data stream...")
 
+    # Upload the natural image dataset
+    nat_img_tuple = main_utils.upload_natural_image_dataset( dataset_path=img_dataset_path )
+
     # Set up the start_model given the electrode information
-    start_model = main_utils.model_from_electrode_info( electrode_info )
+    start_model = main_utils.model_from_electrode_info( electrode_info, *nat_img_tuple )
 
+    # Plot the chosen RF on the checkerboard STA 
+    GP_utils.plot_hyperparams_on_STA( start_model, STA=None, ax=None )
 
-
+    # - Generates a VEC file for the first 50 random images to show using the DMD
+    
 
 
 

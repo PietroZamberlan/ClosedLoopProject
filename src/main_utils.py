@@ -1,4 +1,5 @@
 import json
+import pickle
 
 from config.config     import *
 from src.TCP.tcp_utils import *
@@ -24,23 +25,25 @@ def upload_electrode_info(electrode_info_path, print_info = True, testmode = Fal
         print(f'uploadi_electrode_data in TEST mode, values generated from config.py')
         electrode_info = generate_electrode_info(testmode)
 
-    with open(electrode_info_path, 'r') as f:
-        electrode_info = json.load(f)
+    else:
+        with open(electrode_info_path, 'r') as f:
+            electrode_info = json.load(f)
 
-    for key, value in electrode_info.items():
-        if type(value) == float:
-            print(f'   {key}: {value:.2f}')
-        else:
-            print(f'   {key}: {value:.0f}')
+        for key, value in electrode_info.items():
+            if type(value) == float:
+                print(f'   {key}: {value:.2f}')
+            else:
+                print(f'   {key}: {value:.0f}')
 
     return electrode_info
 
 def theta_from_electrode_info( electrode_info ):
     '''
-    Generates the theta dictionary of hyperparameters from the electrode_info dictionary:
+    Generates the theta dictionary of torch.tensor hyperparameters from the electrode_info dictionary:
 
-    Rescales hyperparameters gave in pixels to [-1,1] 
-    Transforms them into tensors.
+    Rescales RF center hyperparameters gave in pixels to [-1,1] 
+    Rescales RF size and smoothness hyperparameters to [0,2]
+    Transforms them into torch.tensors.
     '''
     
     beta_px   = torch.tensor(electrode_info['RF_size'])
@@ -48,30 +51,32 @@ def theta_from_electrode_info( electrode_info ):
     eps_0x_px = torch.tensor(electrode_info['RF_x_center'])
     eps_0y_px = torch.tensor(electrode_info['RF_y_center'])
 
-    sigma_0 = torch.tensor(electrode_info['acosker_sigma_0']) 
-    Amp = torch.tensor(electrode_info['localker_amplitude'])
+    sigma_0   = torch.tensor(electrode_info['acosker_sigma_0']) 
+    Amp       = torch.tensor(electrode_info['localker_amplitude'])
 
     # region _____ Rescale hyperparameters in pixels to [-1,1] ______
     # Pixel quantities go from 0 to nat_img_px_nb-1, I bring it to [-1,1] multiplying by 2 and shifting
     eps_0x = ( eps_0x_px / (nat_img_px_nb - 1))*2 - 1
     eps_0y = ( eps_0y_px / (nat_img_px_nb - 1))*2 - 1
-    beta   = beta_px / (nat_img_px_nb-1)*2 - 1
-    rho    = rho_px  / (nat_img_px_nb-1)*2 - 1
+    beta   = beta_px / (nat_img_px_nb-1)*2
+    rho    = rho_px  / (nat_img_px_nb-1)*2
     # endregion
 
     logbetaexpr = -2*torch.log(2*beta)
     logrhoexpr  = -torch.log(2*rho*rho)
 
-    theta = {'sigma_0'  : torch.tensor(sigma_0),     'Amp': torch.tensor(Amp),   # Hypermarameters are expected to be 0-dimensional tensors
-            'eps_0x'    : torch.tensor(eps_0x) ,     'eps_0y'   : torch.tensor(eps_0y), 
-            '-2log2beta': torch.tensor(logbetaexpr), '-log2rho2': torch.tensor(logrhoexpr) }
+    theta = {'sigma_0'  : sigma_0,     'Amp': Amp,   # Hypermarameters are expected to be 0-dimensional tensors
+            'eps_0x'    : eps_0x ,     'eps_0y'   : eps_0y, 
+            '-2log2beta': logbetaexpr, '-log2rho2': logrhoexpr }
     
 
     return theta
 
-def model_from_electrode_info( electrode_info ):
+def model_from_electrode_info( electrode_info, X_train, X_test ):
     '''
     Sets up the start_model with the hyperparameters initialized in electrode_info
+
+    A model should not have the nat_img_tuple
     '''
 
     # region _____ Set hyp amd params ______
@@ -86,18 +91,19 @@ def model_from_electrode_info( electrode_info ):
     # endregion
 
     # region _____ Genenerate idxs for starting dataset of images to be shown______
-    _, _, idx_tuple  = GP_utils.get_idx_for_training_testing_validation( 
-            X=[], R=[], ntrain=ntrain_init, ntilde=ntilde_init, ntest_lk=0)
+    xtilde_idx, in_use_idx, remaining_idx, test_lk_idx  = GP_utils.get_idx_for_active_training( 
+        n_tot_img_dataset=n_img_dataset, ntrain=ntrain_init, ntilde=ntilde_init, ntest_lk=0)
+    # endregion
 
-    xtilde_idx, in_use_idx, remaining_idx, test_lk_idx = idx_tuple
-
+    # region _____ Generate xtilde ( the initial training set) ______
+    xtilde = GP_utils.generate_xtilde( ntilde=ntilde_init, x=X_train, xtilde_idxs=xtilde_idx )
 
     fit_parameters = {'ntilde':    ntilde_init,
                     'maxiter':     maxiter_init,
                     'nMstep':      nMstep_init,
                     'nEstep':      nEstep_init,
                     'nFparamstep': nFparamstep_init,
-                    'kernfun':     GP_utils.kernfun,
+                    'kernfun':     GP_utils.acosker,
                     'cellid':      cellid_init,
                     'n_px_side':   n_px_side_init,
                     'in_use_idx':  in_use_idx,     # Used idx for generating xtilde, referred to the whole X dataset
@@ -112,42 +118,9 @@ def model_from_electrode_info( electrode_info ):
             'xtilde':            xtilde,
             'hyperparams_tuple': hyperparams_tuple,     # Contains also the upper and lower bounds for the hyperparameters
             'f_params':          f_params,
-            # 'm':                 torch.zeros( (ntilde) )
-            # 'm': torch.ones( (ntilde) )
-            #'V': dont initialize V if you want it to be initialized as K_tilde and projected _exactly_ as K_tilde_b for stabilisation
         }
 
-    init_model['hyperparams_tuple'] = (theta, init_model['hyperparams_tuple'][1], init_model['hyperparams_tuple'][2])
-
-    # region _____ Hyperparameters choice plotted on the STA ______
-
-    initial_STA_fig, ax = plt.subplots(1, 1, figsize=(5,5)) 
-
-    # Eps_0 : Center of the receptive field
-    center_idxs = torch.tensor([(n_px_side-1)/2, (n_px_side-1)/2])
-    eps_idxs    = torch.tensor( [
-        center_idxs[0]*(1+eps_0x), 
-        center_idxs[1]*(1+eps_0y)
-        ])
-
-    # Beta : Width of the receptive field - Implemented by the "alpha_local" part of the C covariance matrix
-    ycord, xcord = torch.meshgrid( torch.linspace(-1, 1, n_px_side), torch.linspace(-1, 1, n_px_side), indexing='ij') # a grid of 108x108 points between -1 and 1
-    xcord = xcord.flatten()
-    ycord = ycord.flatten()
-    logalpha    = -torch.exp( theta['-2log2beta']     )*((xcord - eps_0x)**2+(ycord - eps_0y)**2  )
-    alpha_local =  torch.exp(logalpha)    # aplha_local in the paper
-
-    # Levels of the contour plot for distances [1sigma, 2sigma, 3sigma]
-    # (x**2 + y**2) = n*sigma -> alpha_local = exp( - (n*sigma)^2 / (2*sigma^2) )
-    levels = torch.tensor( [np.exp(-4.5), np.exp(-2), np.exp(-1/2) ])
-    ax.contour( alpha_local.reshape(n_px_side,n_px_side).cpu(), levels=levels.cpu(), colors='red', alpha=0.5)
-    ax.scatter( eps_idxs[0].cpu(),eps_idxs[1].cpu(), color='white', s=30, marker="o", label='Initial center guess', )
-    # ax.imshow( alpha_local.reshape(n_px_side,n_px_side).cpu(),)
-    ax.imshow(STA, origin='lower')
-    ax.legend(loc='upper right')
-    initial_STA_fig.suptitle(f'STA of cell: {cellid} - Initial hyperparameters')
-
-    # endregion
+    return init_model
 
 def update_model(new_spike_count, current_img_id, current_model, print_lock):
     '''
@@ -209,3 +182,29 @@ def temp_gen_hyp_tuple(theta, freeze_list, display_hyper=True):
         print(f'{key} is {value.cpu().item():.4f}')
 
     return ( theta, theta_lower_lims, theta_higher_lims )
+
+def upload_natural_image_dataset( dataset_path ):
+    '''
+    Uploads the natural image dataset. Its basically a copy of load_stimuli_responses 
+    from GP_utils.py but without the responses.    
+    '''
+
+    X_train = np.load( dataset_path / train_img_dataset_name )
+    X_test  = np.load( dataset_path / test_img_dataset_name)
+
+    return ( torch.tensor(X_train), torch.tensor(X_test) )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
