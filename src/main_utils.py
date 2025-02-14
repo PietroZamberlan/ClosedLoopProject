@@ -33,6 +33,10 @@ def upload_electrode_info(electrode_info_path, print_info = True):
     return electrode_info
 
 def theta_from_electrode_info( electrode_info ):
+    '''
+    Generates the theta dictionary of hyperparameters from the electrode_info dictionary
+    '''
+    
     beta = torch.tensor(electrode_info['RF_size'])
     rho  = torch.tensor(electrode_info['localker_smoothness'])
 
@@ -53,7 +57,6 @@ def theta_from_electrode_info( electrode_info ):
     return theta
 
 def model_from_electrode_info( electrode_info ):
-
     '''
     Sets up the start_model with the hyperparameters initialized in electrode_info
     '''
@@ -69,7 +72,7 @@ def model_from_electrode_info( electrode_info ):
     f_params          = GP_utils.set_f_params( logA, lambda0 )
     # endregion
 
-    # region _____ Upload dataset with the recorded responses and generate idxs ______
+    # region _____ Genenerate idxs for starting dataset of images to be shown______
     _, _, idx_tuple  = GP_utils.get_idx_for_training_testing_validation( 
             X=[], R=[], ntrain=ntrain_init, ntilde=ntilde_init, ntest_lk=0)
 
