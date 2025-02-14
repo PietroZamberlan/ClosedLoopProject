@@ -5,7 +5,7 @@ import torch
 # Get the directory of this file and move one level up to the repo root
 current_dir = Path(__file__).resolve().parent
 REPO_DIR = current_dir.parent
-GP_REPO_DIR = REPO_DIR / 'Gaussian-Processes' / 'Spatial_GP_repo'
+GP_REPO_DIR = REPO_DIR / 'gaussian_processes' / 'Spatial_GP_repo'
 
 testmode = True
 # testmode = False
@@ -24,7 +24,10 @@ DMD_EXE_DIR     = r"C:/Users/user/Repositories/cppalp/x64/Release/"
 ORT_READER_PATH = r"C:\Users\user\ClosedLoopProject\src\Win_side\ort_reader.py"
 
 # Main parameters
-electrode_info_path = REPO_DIR /'data'/'electrode_info'/'electrode_info.json'
+electrode_info_path    = REPO_DIR /'data'  / 'electrode_info' / 'electrode_info.json'
+img_dataset_path       = REPO_DIR / 'data' / 'img_dataset' / ''
+train_img_dataset_name = 'nat_img_train_dataset_PNAS.npy'
+test_img_dataset_name  = 'nat_img_test_dataset_PNAS.npy'
 
 # Theaded functions parameters
 timeout_vec         = 6 # seconds
@@ -79,24 +82,12 @@ lambda0_init = 1.
 
 
 # CUDA parameters
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+TORCH_DTYPE = torch.float32
+torch.set_default_dtype(TORCH_DTYPE)
+
 
 # Initial fit parameters
-# 'ntilde':    ntilde,
-# 'maxiter':     maxiter,
-# 'nMstep':      nMstep,
-# 'nEstep':      nEstep,
-# 'nFparamstep': nFparamstep,
-# 'kernfun':     kernfun,
-# 'cellid':      cellid,
-# 'n_px_side':   n_px_side,
-# 'in_use_idx':  in_use_idx,     # Used idx for generating xtilde, referred to the whole X dataset
-# 'xtilde_idx':  xtilde_idx,     # Used idx for generating the complete set, referred to the whole X dataset
-# 'start_idx':   in_use_idx,   # Indexes used to generate the initial training set
-# 'lr_Mstep':    lr_Mstep, 
-# 'lr_Fparamstep': lr_Fparamstep
-
-
 ntrain_init        = 50  
 ntilde_init        = ntrain_init
 
@@ -110,7 +101,8 @@ n_px_side_init     = nat_img_px_nb
 lr_Mstep_init      = 0
 lr_Fparamstep_init = 0.1
 
-
+# Dataset parameters
+n_img_dataset = 3160
 
 
 
