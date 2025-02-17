@@ -5,6 +5,7 @@ import numpy as np
 from config.config import *
 from src.TCP.tcp_utils import *
 from src import main_utils
+from src.BINVEC.binvec_utils import *
 
 # endregion 
 def initial_listener_linux( electrode_info ):
@@ -36,16 +37,16 @@ def initial_listener_linux( electrode_info ):
     print("Init linux server is running and waiting for data stream...")
 
     # Upload the natural image dataset
-    nat_img_tuple = main_utils.upload_natural_image_dataset( dataset_path=img_dataset_path )
+    nat_img_tuple = main_utils.upload_natural_image_dataset( dataset_path=img_dataset_path, astensor=False )
 
     # Set up the start_model given the electrode information
-    start_model = main_utils.model_from_electrode_info( electrode_info, *nat_img_tuple )
+    start_model = main_utils.model_from_electrode_info( electrode_info, *nat_img_tuple )# dict of tensors
 
     # Plot the chosen RF on the checkerboard STA 
     GP_utils.plot_hyperparams_on_STA( start_model, STA=None, ax=None )
 
     # - Generates a VEC file for the first 50 random images to show using the DMD
-    vec_file = main_utils.generate_vec_file_updated(
+    vec_file = generate_vec_file_updated(
                 active_img_ids = start_model['fit_parameters']['in_use_idx'],
                 rndm_img_ids   = torch.empty(0),
                 n_gray_trgs    = n_gray_trgs,
@@ -53,6 +54,9 @@ def initial_listener_linux( electrode_info ):
                 n_ending_gray_trgs = n_ending_gray_trgs,
                 save_file=True )
 
+    bin_file = generate_bin_file( 
+        nat_img_tuple, 
+        chosen_idxs = start_model['fit_parameters']['in_use_idx'],  )
 
 
     return

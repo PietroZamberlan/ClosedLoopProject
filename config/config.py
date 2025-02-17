@@ -32,11 +32,12 @@ experiment_data_path   = REPO_DIR / 'data'                                # Data
 session_data_tcp_path  = REPO_DIR / 'src' / 'TCP' / 'data' / session_name # Data folder changing with sessions
 
 img_dataset_path       = experiment_data_path / 'img_dataset' 
-train_img_dataset_name = 'nat_img_train_dataset_PNAS.npy'
-test_img_dataset_name  = 'nat_img_test_dataset_PNAS.npy'
+train_img_dataset_name = 'nat_img_train_dataset_PNAS_uint8.npy'
+test_img_dataset_name  = 'nat_img_test_dataset_PNAS_uint8.npy'
 
 electrode_info_path    = experiment_data_path  / 'electrode_info' / 'electrode_info.json'
 vec_path               = session_data_tcp_path / 'vec_files' 
+bin_path               = session_data_tcp_path / 'bin_files'
 
 
 # Theaded functions parameters
