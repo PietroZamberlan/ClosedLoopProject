@@ -33,7 +33,7 @@ def initial_listener_linux( electrode_info ):
     '''
 
     # Set up the context and the sockets
-    # context, pull_socket_packets, req_socket_vec, req_socket_dmd = setup_lin_side_sockets()
+    context, pull_socket_packets, req_socket_vec, req_socket_dmd = setup_lin_side_sockets()
     print("Init linux server is running and waiting for data stream...")
 
     # Upload the natural image dataset
@@ -44,7 +44,6 @@ def initial_listener_linux( electrode_info ):
 
     # Plot the chosen RF on the checkerboard STA 
     GP_utils.plot_hyperparams_on_STA( start_model, STA=None, ax=None )
-
 
     # Generate the vec file for the starting 50 images
     vec_file, vec_pathname = generate_vec_file(

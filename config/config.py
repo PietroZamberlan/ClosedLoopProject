@@ -1,5 +1,6 @@
 
 from pathlib import Path
+import numpy as np
 import platform
 if platform.system() == 'Linux':
     import torch
@@ -105,11 +106,11 @@ if platform.system() == 'Linux':
     torch.set_default_dtype(TORCH_DTYPE)
 
 # Seed for reproducibility
-torch.manual_seed(0)
-torch.manual_seed(0)
-np.random.seed(0)
+    torch.manual_seed(0)
+    torch.manual_seed(0)
 if torch.cuda.is_available():
     torch.cuda.manual_seed(0)
+np.random.seed(0)
 
 # Initial fit parameters
 ntrain_init        = 50  
