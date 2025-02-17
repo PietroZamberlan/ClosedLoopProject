@@ -1,13 +1,9 @@
+from config.config import *
+from src           import main_utils
+from src.TCP.initial_listener_linux import initial_listener_linux
+from src.TCP.listener_linux         import listener_linux
 
-# import os
-# import sys
-# current_dir = os.path.dirname(os.path.realpath(__file__))
-# repo_dir    = os.path.join(current_dir, '../../')
-# sys.path.insert(0, os.path.abspath(repo_dir))
 
-from config.config          import *
-from src.main_utils         import *
-from src.TCP.listener_linux import *
 
 def main():
     '''
@@ -43,7 +39,7 @@ def main():
     '''
     # Upload electrode information file
     print("MAIN - Uploading electrode information file")
-    electrode_info = upload_electrode_info( electrode_info_path )
+    electrode_info = main_utils.upload_electrode_info( electrode_info_path, print_info=True )
 
     # Initial listener_linux.py process
     print("MAIN - Launching initial listener ")
@@ -52,7 +48,6 @@ def main():
     # Launch listener_linux.py process
     print("MAIN - Launching listener_linux.py process")
     final_model = listener_linux( initial_model )
-
 
 
 if __name__ == "__main__":

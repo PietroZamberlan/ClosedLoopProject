@@ -1,33 +1,13 @@
 # region _______ Imports __________
-
 import zmq
-import os
-import sys
-import torch
 import time
 import numpy as np
 import logging
-import importlib.util
-
-current_dir = os.path.dirname(os.path.realpath(__file__))
-repo_dir    = os.path.join(current_dir, '../../')
-sys.path.insert(0, os.path.abspath(repo_dir))
 
 # Import the configuration file
 from config.config import *
-
-# Load the Gaussian Processes module ( it has a - in the name so we need importlib)
-# from Gaussian-Processes.Spatial_GP_repo import utils
-utils_spec = importlib.util.spec_from_file_location(
-    "utils",
-    os.path.join(repo_dir, "Gaussian-Processes/Spatial_GP_repo/utils.py")
-)
-utils = importlib.util.module_from_spec(utils_spec)
-utils_spec.loader.exec_module(utils)
-
 from src.TCP.tcp_utils import *
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from gaussian_processes.Spatial_GP_repo import utils as GP_utils
 
 # endregion 
 def listener_linux( current_model ):
@@ -425,9 +405,9 @@ if __name__ == "__main__":
         'best_electrode' : 0,
         'hyperparameters': [1, 1, 1]
     }
-    initial_model = {
+    current_model = {
         'current_img_id' : 0,
         'current_model'  : electrode_info
     }
 
-    listener_linux( initial_model )
+    listener_linux( current_model )

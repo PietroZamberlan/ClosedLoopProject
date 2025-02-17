@@ -1,3 +1,4 @@
-[submodule "Gaussian-Processes"]
-	path = Gaussian-Processes
-	url = git@github.com:retinal-information-processing-lab/Gaussian-Processes.git
+[submodule "gaussian_processes"]
+	path = gaussian_processes
+	url = git@github.com:retinal-information-processing-lab/gaussian_processes.git
+	branch = pietro/workingbranch

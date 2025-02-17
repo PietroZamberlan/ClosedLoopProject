@@ -3,5 +3,11 @@
         "."
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/gaussian_processes",
+        "${workspaceFolder}/gaussian_processes/Spatial_GP_repo/"
+        ]
 }

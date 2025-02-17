@@ -19,10 +19,10 @@ import threading
 import queue
 import sys
 
-current_dir = os.path.dirname(os.path.realpath(__file__))
-repo_dir    = os.path.join(current_dir, '..\\..\\')
-sys.path.insert(0, os.path.abspath(repo_dir))
-print(f"Repo dir: {repo_dir}")
+# current_dir = os.path.dirname(os.path.realpath(__file__))
+# repo_dir    = os.path.join(current_dir, '..\\..\\')
+# sys.path.insert(0, os.path.abspath(repo_dir))
+# print(f"Repo dir: {repo_dir}")
 
 # Import the configuration file
 from config.config import *
