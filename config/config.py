@@ -1,6 +1,8 @@
 
 from pathlib import Path
-import torch
+import platform
+if platform.system() == 'Linux':
+    import torch
 
 
 
