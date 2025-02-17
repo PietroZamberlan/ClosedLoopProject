@@ -45,18 +45,23 @@ def initial_listener_linux( electrode_info ):
     # Plot the chosen RF on the checkerboard STA 
     GP_utils.plot_hyperparams_on_STA( start_model, STA=None, ax=None )
 
-    # - Generates a VEC file for the first 50 random images to show using the DMD
-    vec_file = generate_vec_file_updated(
+
+    # Generate the vec file for the starting 50 images
+    vec_file, vec_pathname = generate_vec_file(
                 active_img_ids = start_model['fit_parameters']['in_use_idx'],
                 rndm_img_ids   = torch.empty(0),
                 n_gray_trgs    = n_gray_trgs,
                 n_img_trgs     = n_img_trgs,
                 n_ending_gray_trgs = n_ending_gray_trgs,
-                save_file=True )
+                save_file=True,
+                testmode=testmode ) 
+    
 
-    bin_file = generate_bin_file( 
-        nat_img_tuple, 
-        chosen_idxs = start_model['fit_parameters']['in_use_idx'],  )
+
+
+
+
+
 
 
     return

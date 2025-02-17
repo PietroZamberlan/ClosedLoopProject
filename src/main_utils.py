@@ -97,7 +97,8 @@ def model_from_electrode_info( electrode_info, X_train, X_test ):
     # endregion
 
     # region _____ Generate xtilde ( the initial training set) ______
-    xtilde = GP_utils.generate_xtilde( ntilde=ntilde_init, x=X_train, xtilde_idxs=xtilde_idx )
+    xtilde = GP_utils.generate_xtilde( 
+        ntilde=ntilde_init, x=X_train, xtilde_idxs=xtilde_idx )
 
     fit_parameters = {'ntilde':    ntilde_init,
                     'maxiter':     maxiter_init,
