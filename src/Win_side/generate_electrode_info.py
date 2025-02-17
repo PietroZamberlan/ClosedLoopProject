@@ -12,7 +12,7 @@ print(f"Repo dir: {repo_dir} from generate_electrode_info.py")
 import json
 from config.config import *
 
-def generate_electrode_info(testmode ):
+def generate_electrode_info(testmode):
 
     """
     Prompts the user for electrode number and hyperparameters estimation
@@ -33,12 +33,7 @@ def generate_electrode_info(testmode ):
             'localker_amplitude'  : hyperparameter Amp, amplitude of the localker
             'localker_smoothness' : hyperparameter rho, smoothness in the localker
             'acosker_sigma_0'     : hyperparameter sigma_0 of the acosker
-            
 
-            
-
-            
-            
     """
 
     electrode_info = {}
