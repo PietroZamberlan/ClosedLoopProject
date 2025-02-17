@@ -23,7 +23,7 @@ def upload_electrode_info(electrode_info_path, print_info = True, testmode = Fal
     Uploads the electrode_info_file from the given path set in the config file.
     '''
     if testmode:
-        print(f'uploadi_electrode_data in TEST mode, values generated from config.py')
+        print(f'upload_electrode_data in TEST mode, values generated from config.py')
         electrode_info = generate_electrode_info(testmode)
 
     else:
@@ -97,7 +97,8 @@ def model_from_electrode_info( electrode_info, X_train, X_test ):
     # endregion
 
     # region _____ Generate xtilde ( the initial training set) ______
-    xtilde = GP_utils.generate_xtilde( ntilde=ntilde_init, x=X_train, xtilde_idxs=xtilde_idx )
+    xtilde = GP_utils.generate_xtilde( 
+        ntilde=ntilde_init, x=X_train, xtilde_idxs=xtilde_idx )
 
     fit_parameters = {'ntilde':    ntilde_init,
                     'maxiter':     maxiter_init,
@@ -184,7 +185,7 @@ def temp_gen_hyp_tuple(theta, freeze_list, display_hyper=True):
 
     return ( theta, theta_lower_lims, theta_higher_lims )
 
-def upload_natural_image_dataset( dataset_path ):
+def upload_natural_image_dataset( dataset_path, astensor=True ):
     '''
     Uploads the natural image dataset. Its basically a copy of load_stimuli_responses 
     from GP_utils.py but without the responses.    
@@ -193,66 +194,10 @@ def upload_natural_image_dataset( dataset_path ):
     X_train = np.load( dataset_path / train_img_dataset_name )
     X_test  = np.load( dataset_path / test_img_dataset_name)
 
-    return ( torch.tensor(X_train), torch.tensor(X_test) )
-
-def generate_vec_file_updated(active_img_ids, rndm_img_ids, 
-                              n_gray_trgs, n_img_trgs, n_ending_gray_trgs, 
-                              save_file=True):
-    """
-    Generate the VEC file for the chosen image IDs and the random image IDs,
-    with the following structure:
-    0 {total_frames} 0 0 0
-    for _ in range(n_active_imgs):
-        0 0 0 0 0                   [n_gray_trgs lines]
-        0 {ith_chosen_img_id} 0 0 0 [n_img_trgs lines]
-        0 0 0 0 0                   [max_grey_trgs lines]
-        0 {rndm_img_id} 0 0 0       [n_img_trgs lines]
-    0 0 0 0 0                   [n_gray_trgs lines]
-
-    If rndm_img_ids is None, the function will generate the VEC file for the active_img_ids only.
-
-    Parameters:
-    active_img_ids (int): The image IDs.
-    rndm_img_ids  (int): The random image IDs.
-    n_gray_trgs (int): The number of lines representing the STARTING gray image.
-    n_ending_gray_trgs (int): The number of lines representing the ENDING gray image.
-    n_img_trgs (int): The number of lines representing triggers of the natural image be it active or random
-
-    Returns:
-        file_content (str): The content of the VEC file.
-    """
-
-    n_active_imgs = active_img_ids.shape[0]
-    n_rndm_imgs   = rndm_img_ids.shape[0]    # either ==0 or ==n_active_imgs
-    if not ((n_active_imgs == n_rndm_imgs) or (n_rndm_imgs == 0)):
-        raise ValueError(f"The number of active ({n_active_imgs}) and random ({n_rndm_imgs}) images must either same or n_active and zero")
-
-    n_loops       = n_active_imgs
-    n_loop_frames =  n_gray_trgs+n_img_trgs
-    n_loop_frames += n_gray_trgs+n_img_trgs if n_rndm_imgs != 0 else 0
-    n_frames_tot  = n_loops * n_loop_frames + n_ending_gray_trgs
-
-    lines = []
-    # Write the lines
-    lines.append(f"0 {n_frames_tot} 0 0 0\n")
-    for _ in range(n_loops):
-        for _ in range(n_gray_trgs):       lines.append(f"0 0 0 0 0\n")
-        for img_id in active_img_ids:        lines.append(f"0 {img_id} 0 0 0\n")
-        if n_rndm_imgs != 0:            
-            for _ in range(n_gray_trgs):   lines.append(f"0 0 0 0 0\n")  
-            for rndm_img_id in rndm_img_ids: lines.append(f"0 {rndm_img_id} 0 0 0\n")
-    for _ in range(n_ending_gray_trgs):        lines.append(f"0 0 0 0 0\n")
-    file_content = ''.join(lines)
-
-    if save_file:
-        if n_rndm_imgs == 0:
-            file_name = f'VEC_start_model_{n_active_imgs}_imgs'
-        else:
-            file_name = f'VEC_img_id_{active_img_ids[0]}'
-        # Session name is in the vec_path in config.py
-        save_vec(file_content, dir_path=vec_path, file_name=file_name)
-              
-    return file_content
+    if astensor:
+        return ( torch.tensor(X_train), torch.tensor(X_test) )
+    else:
+        return ( X_train, X_test )
 
 def save_vec( vec_content, dir_path, file_name):
 

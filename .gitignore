@@ -3,9 +3,12 @@ jupyter_tests.ipynb
 toto.raw
 src/TCP/saved/*
 src/DMD/saved/*
+
 src/TCP/data/*
 data/*
+
 src/Win_side/McsUsbNet_Examples/*
+src/binarization_simone/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

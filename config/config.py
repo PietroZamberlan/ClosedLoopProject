@@ -1,8 +1,7 @@
 
 from pathlib import Path
-import platform
-if platform.system() == 'Linux':
-    import torch
+import torch
+
 
 
 # Get the directory of this file and move one level up to the repo root
@@ -35,10 +34,13 @@ experiment_data_path   = REPO_DIR / 'data'                                # Data
 session_data_tcp_path  = REPO_DIR / 'src' / 'TCP' / 'data' / session_name # Data folder changing with sessions
 
 img_dataset_path       = experiment_data_path / 'img_dataset' 
-train_img_dataset_name = 'nat_img_train_dataset_PNAS.npy'
-test_img_dataset_name  = 'nat_img_test_dataset_PNAS.npy'
+train_img_dataset_name = 'nat_img_train_dataset_PNAS_uint8.npy'
+test_img_dataset_name  = 'nat_img_test_dataset_PNAS_uint8.npy'
 
 electrode_info_path    = experiment_data_path  / 'electrode_info' / 'electrode_info.json'
+bin_path               = experiment_data_path / 'bin_file'
+bin_pathname           = bin_path / 'bin_file.bin'
+
 vec_path               = session_data_tcp_path / 'vec_files' 
 
 
@@ -100,6 +102,12 @@ if platform.system() == 'Linux':
     TORCH_DTYPE = torch.float32
     torch.set_default_dtype(TORCH_DTYPE)
 
+# Seed for reproducibility
+torch.manual_seed(0)
+torch.manual_seed(0)
+np.random.seed(0)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(0)
 
 # Initial fit parameters
 ntrain_init        = 50  
@@ -117,6 +125,7 @@ lr_Fparamstep_init = 0.1
 
 # Dataset parameters
 n_img_dataset = 3160
+
 
 
 

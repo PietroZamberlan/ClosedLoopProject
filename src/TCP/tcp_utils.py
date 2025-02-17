@@ -99,45 +99,6 @@ def threaded_fit_end_queue_img(new_spike_count, current_img_id, current_model, t
     threadict['fit_finished_event'].set()
     return
 
-def generate_vec_file(chosen_img_id, rndm_img_id, max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10, save_file=None):
-    """
-    Generate the VEC file for the chosen image ID and the random image ID., with the following structure:
-    0 {max_total_frames} 0 0 0
-    0 0 0 0 0               [max_gray_trgs lines]
-    0 {chosen_img_id} 0 0 0 [max_img_trgs lines]
-    0 0 0 0 0               [max_grey_trgs lines]
-    0 {rndm_img_id} 0 0 0   [max_img_trgs lines]
-    0 0 0 0 0               [ending_gray_trgs lines]
-
-    Parameters:
-    img_id (int): The image ID.
-    rndm_img_id (int): The random image ID.
-    max_gray_trgs (int): The number of lines representing the STARTING gray image.
-    ending_gray_trgs (int): The number of lines representing the ENDING gray image.
-    max_img_trgs (int): The number of lines representing triggers of the natural image.
-    """
-
-    file_path = f'{REPO_DIR}/src/DMD/saved/vec_file_{chosen_img_id}.txt'
-    lines = []
-
-    # Write the first line
-    lines.append(f"0 {max_gray_trgs+max_img_trgs+max_gray_trgs+max_img_trgs+ending_gray_trgs} 0 0 0\n")
-    # Write the following lines
-    for _ in range(max_gray_trgs):     lines.append(f"0 0 0 0 0\n")
-    for _ in range(max_img_trgs):      lines.append(f"0 {chosen_img_id} 0 0 0\n")            
-    for _ in range(max_gray_trgs):     lines.append(f"0 0 0 0 0\n")  
-    for _ in range(max_img_trgs):      lines.append(f"0 {rndm_img_id} 0 0 0\n")            
-    for _ in range(ending_gray_trgs):  lines.append(f"0 0 0 0 0\n")  
-
-    file_content = ''.join(lines)
-    if save_file:
-        with open(file_path, 'w') as file: 
-            file.write(file_content)
-              
-    return file_content, file_path
-
-
-
 def threaded_vec_send_and_confirm( chosen_img_id, rndm_img_id, threadict, req_socket_vec,  max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10):
     '''
     Generates the vec file.

@@ -5,8 +5,8 @@ setup(
     version='0.1.0',
     packages=find_packages(include=['config', 'config.*', 
                                     'src', 'src.*',
-                                    # 'Gaussian-Processes.Spatial_GP_repo', 'Gaussian-Processes.Spatial_GP_repo*',]),
-                                    'gaussian_processes', 'gaussian_processes.*',]),
+                                    'gaussian_processes', 'gaussian_processes.*',
+                                    'src/BINVEC/pystim', 'src/BINVEC/pystim.*',]),
     package_dir={"":"." },
     include_package_data=True,
     install_requires=[
