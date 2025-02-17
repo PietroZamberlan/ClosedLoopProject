@@ -5,8 +5,7 @@ src/TCP/saved/*
 src/DMD/saved/*
 src/TCP/data/*
 data/*
-
-
+src/Win_side/McsUsbNet_Examples/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
