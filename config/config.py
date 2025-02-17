@@ -1,6 +1,9 @@
 
 from pathlib import Path
-import torch
+import platform
+if platform.system() == 'Linux':
+    import torch
+
 
 # Get the directory of this file and move one level up to the repo root
 current_dir = Path(__file__).resolve().parent
@@ -92,9 +95,10 @@ lambda0_init = 1.
 
 
 # CUDA parameters
-DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-TORCH_DTYPE = torch.float32
-torch.set_default_dtype(TORCH_DTYPE)
+if platform.system() == 'Linux':
+    DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    TORCH_DTYPE = torch.float32
+    torch.set_default_dtype(TORCH_DTYPE)
 
 
 # Initial fit parameters
