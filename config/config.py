@@ -1,3 +1,9 @@
+from pathlib import Path
+
+# Get the directory of this file and move one level up to the repo root
+current_dir = Path(__file__).resolve().parent
+repo_dir = current_dir.parent
+
 
 testmode = True
 # testmode = False
@@ -16,10 +22,13 @@ DMD_EXE_PATH    = r"C:/Users/user/Repositories/cppalp/x64/Release/film.exe"
 DMD_EXE_DIR     = r"C:/Users/user/Repositories/cppalp/x64/Release/"
 ORT_READER_PATH = r"C:\Users\user\ClosedLoopProject\src\Win_side\ort_reader.py"
 
+# Main parameters
+electrode_info_path = repo_dir /'data'/'electrode_info'/'electrode_info.json'
+
+
 # Theaded functions parameters
 timeout_vec         = 6 # seconds
 timeout_dmd_off_rcv = 5
-
 
 
 # DMD executable parameters
@@ -29,7 +38,7 @@ vec_number     = "0"
 frame_rate     = "30"
 advanced_f     = "y"
 n_frames_LUT   = "15"
-raw_data_file_path = "data/raw_data.raw"
+raw_data_file_path = repo_dir / 'data' / 'raw_data.raw'
 
 min_time_dmd_off = 3.5    # Min time to wait from the DMD off confirmation to be sure its really off
 max_time_dmd_off = 7      # Maximum time from the confirmation of being off to be sure that it is not starting again ( The windows server is stopping )
