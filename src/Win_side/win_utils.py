@@ -343,3 +343,45 @@ def generate_packet(buffer_nb):
     packet['buffer_nb']    = buffer_nb
 
     return packet
+
+def ask_to_continue(testmode):
+    if not testmode: 
+        choice = input(f"Transfer electrode_info file to {electrode_info_path} on Linux machine.\nThen press 'Y' to continue.\nAnything else to cancel: ")
+    else:
+        print(f'User input to continue automatized by TEST mode')
+        print("Continuing ...")
+        return True
+
+    if choice.lower() != 'y':
+        print("Aborted by user.")
+        return False
+    else:
+        print("Continuing ...")
+        return True
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

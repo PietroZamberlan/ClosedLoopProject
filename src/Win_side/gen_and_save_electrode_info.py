@@ -4,10 +4,10 @@ import json
 from config.config import *
 
 
-print(f"Repo dir: {REPO_DIR} from generate_electrode_info.py")
+print(f"Repo dir: {REPO_DIR} from gen_and_save_electrode_info.py")
 
 
-def generate_electrode_info(testmode):
+def gen_and_save_electrode_info(testmode):
 
     """
     Prompts the user for electrode number and hyperparameters estimation
@@ -66,6 +66,7 @@ def generate_electrode_info(testmode):
 
 
     if not testmode:
+        print('Saving electrode info to file.')
         # check if file exists and save the electrode info
         # if it exists add a numbe rto the file name
         electrode_info_filename = 'electrode_info.json'
@@ -83,7 +84,6 @@ def generate_electrode_info(testmode):
         
     return electrode_info
 
-
 if __name__ == '__main__':
 
-    electrode_info = generate_electrode_info(testmode)
+    electrode_info = gen_and_save_electrode_info(testmode)

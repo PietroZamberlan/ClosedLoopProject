@@ -52,8 +52,10 @@ vec_path               = session_data_tcp_path / 'vec_files'
 # Windows main parameters 
 Win_side_path = REPO_DIR / 'src' / 'Win_side'
 
-ort_reader_output_pathname = Win_side_path / "output_ort_reader.log"
-dmd_output_pathname        = Win_side_path / "output_DMD.log" 
+ort_reader_output_pathname       = Win_side_path / "output_ort_reader.log"
+dmd_output_pathname              = Win_side_path / "output_DMD.log"
+ort_reader_start_output_pathname = Win_side_path / "output_ort_reader_start.log"
+dmd_start_output_pathname        = Win_side_path / "output_DMD_start.log" 
 
 # endregion
 
