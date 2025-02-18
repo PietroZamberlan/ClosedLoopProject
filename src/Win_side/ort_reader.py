@@ -13,6 +13,7 @@ import zmq
 import scipy
 
 from win_utils import generate_packet
+from config.config import *
 
 from System import *
 clr.AddReference('System.Collections')
@@ -303,10 +304,15 @@ try:
             time.sleep(1)
             # print('Still alive...')
     if testmodeMEA:
-        # Send simulated packets
-        buffer_nb = 0
-
-        packet = generate_packet(buffer_nb)
+        # Send simulated packets every 0.1s
+        buffer_nb = starting_buffer_nb
+        while True:
+            time.sleep(0.11)
+            packet = generate_packet(buffer_nb)
+            # buffer_nb += 1
+            socket.send_string(json.dumps(packet, cls=Encoder))    
+            if buffer_nb == ending_buffer_nb:
+                break
 
 except KeyboardInterrupt:
     pass

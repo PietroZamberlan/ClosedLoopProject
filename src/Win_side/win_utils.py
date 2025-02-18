@@ -5,14 +5,7 @@ import threading
 import subprocess
 import sys
 
-current_dir = os.path.dirname(os.path.realpath(__file__))
-repo_dir    = os.path.join(current_dir, '..\\..\\')
-sys.path.insert(0, os.path.abspath(repo_dir))
-print(f"Repo dir: {repo_dir}")
-
 from config.config import *
-
-
 
 class CustomException(Exception):
     def __init__(self, message):
@@ -75,7 +68,7 @@ def launch_ort_process( ORT_READER_PATH, ort_reader_params, log_file_ort, testmo
 
     return ort_process
 
-def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_event):
+def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_event, exceptions_q):
     
     '''
     Threaded function to wait for the signal to turn of the DMD coming from the 
@@ -117,13 +110,14 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
             print('...DMD Off cmd receiver Thread: Stopped from outside')
             print('...DMD Off cmd receiver Thread: off event set')
             return
-    except:
+    except Exception as e:
         dmd_off_event.set()
         global_stop_event.set()
         print('...DMD Off cmd receiver Thread: EXCEPTION encountered - global_stop_event and dmd_off_event set')
+        exceptions_q.put(e)
         return
 
-def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_stop_event, allow_vec_changes_event ):
+def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_stop_event, allow_vec_changes_event, exceptions_q ):
     ''' 
     Waits for the VEC file to be received from the Linux machine.
 
@@ -175,13 +169,14 @@ def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_
         global_stop_event.set()
         # failure_event.set() # there was this line here, for an event that i removed sent to this function. I think its useless
         return
-    except:
+    except Exception as e:
         global_stop_event.set()
         print('...VEC Thread: EXCEPTION encountered - global_stop_event set')
+        exceptions_q.put(e)
         return
     
 def threaded_DMD(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, process_queue_DMD, dmd_off_event, 
-                 allow_vec_changes_event, global_stop_event, log_file_DMD=None, testmode=True):
+                 allow_vec_changes_event, global_stop_event, exceptions_q, log_file_DMD=None, testmode=True):
     '''
     Launches the DMD projector process with the .VEC file of images specified in input_data_DMD.
 
@@ -213,19 +208,21 @@ def threaded_DMD(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, process_queue_DMD, d
         while not dmd_off_event.is_set():
             pass
         else:
-            DMD_process.terminate()
+            if not testmode: DMD_process.terminate()
             # Wait for authorization to overwrite the vec file. If this event is not set
             # it means
             allow_vec_changes_event.set()
             print('...DMD Thread: DMD process terminated, VEC file can be modified')
             return
         
-    except:
-        print('...DMD Thread: EXCEPTION encountered - global_stop_event set')
+    except Exception as e:
+
+        print('...DMD Thread: EXCEPTION encountered - setting global_stop_event')
         global_stop_event.set()
+        exceptions_q.put(e)
         return
 
-def launch_dmd_off_receiver(dmd_off_event, rep_socket_dmd, global_stop_event):
+def launch_dmd_off_receiver(dmd_off_event, rep_socket_dmd, global_stop_event, exceptions_q):
     '''Launches the DMD Off cmd receiver Thread
     
     Sets:
@@ -237,12 +234,12 @@ def launch_dmd_off_receiver(dmd_off_event, rep_socket_dmd, global_stop_event):
     # Launch parallel function to listen for DMD off command
     dmd_off_event.clear()
     global_stop_event.clear()               
-    args = (rep_socket_dmd, dmd_off_event, global_stop_event)
+    args = (rep_socket_dmd, dmd_off_event, global_stop_event, exceptions_q)
     DMD_off_listening_thread = threading.Thread(target=threaded_rcv_dmd_off_signal, args=args) 
     DMD_off_listening_thread.start()                
     return DMD_off_listening_thread
 
-def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, global_stop_event, allow_vec_changes_event):
+def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, global_stop_event, allow_vec_changes_event, exceptions_q):
     '''Launches the VEC receiver and confirmer thread
 
         It will wait for the VEC from Linux machine
@@ -264,12 +261,12 @@ def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, 
     print('Launching VEC confirmation thread')
     # Launch parallel function to wait for response
     vec_received_confirmed_event.clear()
-    args = (rep_socket_vec, vec_received_confirmed_event, global_stop_event, allow_vec_changes_event)
+    args = (rep_socket_vec, vec_received_confirmed_event, global_stop_event, allow_vec_changes_event, exceptions_q)
     vec_receiver_confirmer_thread = threading.Thread(target=threaded_wait_for_vec, args=args) 
     vec_receiver_confirmer_thread.start()
     return vec_receiver_confirmer_thread
 
-def launch_DMD_process_thread(allow_vec_changes_event, input_data_DMD, process_queue_DMD, dmd_off_event, global_stop_event, log_file_DMD, testmode=True):
+def launch_DMD_process_thread(allow_vec_changes_event, input_data_DMD, process_queue_DMD, dmd_off_event, global_stop_event, exceptions_q, log_file_DMD, testmode=True):
     '''
     Launches the thread that starts the DMD projector.
     The thread will:
@@ -288,7 +285,7 @@ def launch_DMD_process_thread(allow_vec_changes_event, input_data_DMD, process_q
     # it means the DMD is still showing the images (using the .VEC)
     allow_vec_changes_event.clear()                
     args_DMD_thread = (DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, process_queue_DMD, 
-                       dmd_off_event, allow_vec_changes_event, global_stop_event, log_file_DMD, testmode)
+                       dmd_off_event, allow_vec_changes_event, global_stop_event, exceptions_q, log_file_DMD, testmode)
     DMD_thread      = threading.Thread(target=threaded_DMD, args=args_DMD_thread) 
     DMD_thread.start()
     return DMD_thread
@@ -334,13 +331,15 @@ def generate_packet(buffer_nb):
         buffer_nb (int): The buffer / packet number used to keep track of how many packets have been sent.
     
     '''
-
+    
     packet = {}
-    file_path = os.path.join(repo_dir, f'test_data/ch_{ch_id}/')
 
-    data_path              = os.path.join(file_path, f'data_ch_{ch_id}_bf_{buffer_nb}.npy')
+    data_path              = electrode_raw_data_path / f'ch_{ch_id}' / f'data_ch_{ch_id}_bf_{buffer_nb}.npy'
+    trgs_path              = electrode_raw_data_path / 'trg_ch' / f'trg_ch_bf_{buffer_nb}.npy'
+
     packet['data']         = np.load(data_path).astype(np.int32)
     packet['data']         = np.tile(packet['data'], (256, 1))
-    trgs_path              = os.path.join(file_path, f'trg_ch_bf_{buffer_nb}.npy')
     packet['trg_raw_data'] = np.load(trgs_path).astype(np.int32)
     packet['buffer_nb']    = buffer_nb
+
+    return packet
