@@ -19,84 +19,104 @@ def init_run_MEA_DMD():
     Starts  MEA recording, and sending packets.
         Setup sockets for communication
         Start MEA recording ( the ORT subprocess  )
+        Wait for signal to allow start of DMD 
 
     2.
     Waits for the VEC file from the Linux side
+        Setup threading variables
+        Start listening for DMD off signal
+        Receive
         Confirm VEC reception
 
+    3.
     Waits for command to executes DMD process
         Launch DMD process ( it project images using the DMD in the order specified in the VEC file )
     
+    4.
     Waits for command to stop the DMD process from Linux side
         Stop the DMD process
     
     '''
+    # Threading variables
+    threadict, DMD_off_listening_thread, \
+        DMD_thread, vec_receiver_confirmer_thread \
+            = setup_win_thread_vars()
 
-    def setup_win_side_sockets():
-        '''
-        Sets up the VEC reception and DMD process control sockets.
+    # Socket variables
+    context, rep_socket_vec, rep_socket_dmd = None, None, None
 
-        The socket for packet sending is set up in the ORT subprocess.
-        '''
+    try:
+        # 1.
+        # Setup the sockets to receive VEC and DMD off messages
+        context, rep_socket_vec, rep_socket_dmd = setup_win_side_sockets()
+
+        # Setup and run MEA recording (ORT process)
+        ort_reader_params = ["-ip", LINUX_IP, "--port", PULL_SOCKET_PACKETS_PORT, 
+                            "--buffer_size", f'{buffer_size}', '--threshold_multiplier', f'{threshold_multiplier_init}', 
+                            "--filename", raw_data_file_path]
+        # Handle to log file has to be defined in long lived scope to avoid function returning and closing file
+        log_file_ort = open(ort_reader_start_output_pathname, "w")
+
+        # Launch MEA and wait for file to allow DMD start
+        ort_process = launch_ort_process( ORT_READER_PATH, ort_reader_params, 
+                                        log_file_ort=log_file_ort, testmode=testmode)
+
+        wait_for_signal_file_to_start_DMD(ort_process)
+
+        # 2.
+        # Launch DMD off cmd receiver listening thread
+        DMD_off_listening_thread = launch_dmd_off_receiver(
+            rep_socket_dmd, threadict, timeout_dmd_off_rcv_phase1 )
+
+        # Wait for VEC file 
+        vec_receiver_confirmer_thread = wait_for_VEC_file(
+            rep_socket_vec, threadict, timeout_vec_phase1, vec_pathname_dmd_source_start )
+        if threadict['global_stop_event'].is_set(): return
+
+        # 3.
+        # Start DMD projector    
+        log_file_DMD = open(dmd_start_output_pathname, "w")
+
+        exe_params = [pietro_dir_DMD, bin_number, vec_number, frame_rate, advanced_f, n_frames_LUT]
+        input_data_DMD = "\n".join(exe_params)+"\n"
+
+        DMD_thread = launch_DMD_process_thread( 
+            input_data_DMD, threadict, log_file_DMD,
+            testmode=testmode )
+
+        # 4.
+        # Wait for DMD stop command
+        # while threadict['dmd'] \
+            # not threadict['global_stop_event']
 
 
-        # Listening socket
-        context     = zmq.Context()
+    except KeyboardInterrupt:
+        print("Key Interrupt")
+        threadict['global_stop_event'].set()
 
-        rep_socket_vec = context.socket(zmq.REP)
-        rep_socket_vec.bind(f"tcp://0.0.0.0:{REQ_SOCKET_VEC_PORT}")
+    finally:
+        if not threadict['global_stop_event'].is_set():
+            threadict['global_stop_event'].set()
 
-        rep_socket_dmd = context.socket(zmq.REP)
-        rep_socket_dmd.bind(f"tcp://0.0.0.0:{REQ_SOCKET_DMD_PORT}")
-
-        print('++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
-        print('   Windows client is running...')
-
-        return context, rep_socket_vec, rep_socket_dmd
-
-    # Setup the sockets to receive VEC and DMD off messages
-    context, rep_socket_vec, rep_socket_dmd = setup_win_side_sockets()
-
-    def launch_ort_process_updated( ORT_READER_PATH, ort_reader_params, testmode ):
-        '''Launches the ort reader process to acquire data from the MEA device.
-            
-            Sleeps for 2.5 the main thread to wait for ort_reader to get to the point 
-            at which it writes the signal file or fails cause no device is connected.
-            
-        Args:
-            ORT_READER_PATH: The path to the Python script that launches the acquisition
-            ort_reader_params: The parameters to pass to the Python script'''
-        # Run the Python script with the parameters
-        if testmode:
-            print("Launching MEA acquisition in TEST mode...")
-        else:
-            print("Launching MEA acquisition...")
+        # Then join them
+        time.sleep(0.2)
+        join_treads([DMD_off_listening_thread, DMD_thread, vec_receiver_confirmer_thread])
         
-        with open(ort_reader_start_output_pathname, "w") as log_file_ort:
-            # We set the -u flag to avoid buffering the output ( it would stop the OnChannelData to print the data in real time )
-            ort_process = subprocess.Popen(["python", '-u', ORT_READER_PATH] + ort_reader_params + (["-T"] if testmode else []), 
-                                        stdout=log_file_ort, stderr=log_file_ort, text=True)
-            print("Acquisition is running...")
+        # Terminate subprocesses
+        terminate_DMD_queue(threadict['process_queue_DMD'])
+        terminate_ort_process(ort_process, log_file_ort)
+        
+        # Close the VEC and DMD sockets
+        close_sockets([rep_socket_vec, rep_socket_dmd])
 
-            def flush_log():
-                while ort_process.poll() is None:
-                    log_file_ort.flush()
-                    time.sleep(1)
+        # Clean up the signal file if it exists
+        if os.path.exists(signal_file):
+            os.remove(signal_file)
+            print("Signal file cleanup complete.")
 
-            flush_thread = threading.Thread(target=flush_log, daemon=True)
-            flush_thread.start()
-
-            time.sleep(.5) # the ort process takes some time to get to the point in which it writes the signal file, so we wait a bit instead of printing a lot of "waiting for signal file"
-
-        return ort_process
-
-    # ort reader parameters
-    ort_reader_params = ["-ip", LINUX_IP, "--port", PULL_SOCKET_PACKETS_PORT, 
-                        "--buffer_size", f'{buffer_size}', '--threshold_multiplier', f'{threshold_multiplier_init}', 
-                        "--filename", raw_data_file_path]
-
-    ort_process = launch_ort_process_updated( ORT_READER_PATH, ort_reader_params, testmode=testmode)
-
+        print('Checking for exceptions in queue...')
+        if not threadict['exceptions_q'].empty():
+            raise threadict['exceptions_q'].get()
     return
 
 

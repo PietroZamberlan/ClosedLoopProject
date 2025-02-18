@@ -3,7 +3,7 @@ import os
 import zmq
 import threading
 import subprocess
-import sys
+import queue
 
 from config.config import *
 
@@ -29,7 +29,7 @@ def wait_for_signal_file_to_start_DMD(ort_process):
         print("Waiting for the signal file to start DMD...")
         return_code = ort_process.poll()
         if return_code == 1: # Device not connected
-            raise CustomException("NoDeviceConnected: No MEA device connected")
+            raise CustomException("OrtProcessFail: Probably NoDeviceConnected: No MEA device connected")
         if return_code is None:
             pass
         time.sleep(0.5)
@@ -52,23 +52,25 @@ def launch_ort_process( ORT_READER_PATH, ort_reader_params, log_file_ort, testmo
     else:
         print("Launching MEA acquisition...")
     # We set the -u flag to avoid buffering the output ( it would stop the OnChannelData to print the data in real time )
-    ort_process = subprocess.Popen(["python", '-u', ORT_READER_PATH] + ort_reader_params + (["-T"] if testmode else []), 
-                                stdout=log_file_ort, stderr=log_file_ort, text=True)
+    ort_process = subprocess.Popen(["python", '-u', ORT_READER_PATH] + 
+                                   ort_reader_params + (["-T"] if testmode else []), 
+                                   stdout=log_file_ort, stderr=log_file_ort, text=True)
     print("Acquisition is running...")
 
     def flush_log():
         while ort_process.poll() is None:
             log_file_ort.flush()
             time.sleep(1)
+        log_file_ort.flush() # one last flush when the process finishes
 
-    flush_thread = threading.Thread(target=flush_log)
+    flush_thread = threading.Thread(target=flush_log, )
     flush_thread.start()
 
     time.sleep(.5) # the ort process takes some time to get to the point in which it writes the signal file, so we wait a bit instead of printing a lot of "waiting for signal file"
 
     return ort_process
 
-def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_event, exceptions_q):
+def threaded_rcv_dmd_off_signal( rep_socket_dmd, threadict, timeout_dmd_off_rcv):
     
     '''
     Threaded function to wait for the signal to turn of the DMD coming from the 
@@ -89,7 +91,7 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
         poller.register(rep_socket_dmd, zmq.POLLIN)
         print(f'...DMD Off cmd receiver Thread: Waiting for command, timeout {timeout_dmd_off_rcv} seconds')
         
-        while not global_stop_event.is_set():
+        while not threadict['global_stop_event'].is_set():
             elapsed_time = time.time() - start_time
             socks = dict(poller.poll(timeout=100)) 
             # print('\n ...DMD Off cmd receiver Thread: Waiting for command since {} seconds'.format(elapsed_time))            
@@ -98,26 +100,26 @@ def threaded_rcv_dmd_off_signal( rep_socket_dmd, dmd_off_event, global_stop_even
 
                 rep_socket_dmd.send_string(request)
                 print(f"...DMD Off cmd receiver Thread: Stop command received and confirmed {elapsed_time:.3f} seconds")   
-                dmd_off_event.set()
+                threadict['dmd_off_event'].set()
                 return
             if elapsed_time > timeout_dmd_off_rcv:
                 print("...DMD Off cmd receiver Thread: Timeout expired")
-                dmd_off_event.set()
+                threadict['dmd_off_event'].set()
                 print('...DMD Off cmd receiver Thread: off event set')
                 return
         else:
-            dmd_off_event.set()
+            threadict['dmd_off_event'].set()
             print('...DMD Off cmd receiver Thread: Stopped from outside')
             print('...DMD Off cmd receiver Thread: off event set')
             return
     except Exception as e:
-        dmd_off_event.set()
-        global_stop_event.set()
+        threadict['dmd_off_event'].set()
+        threadict['global_stop_event'].set()
         print('...DMD Off cmd receiver Thread: EXCEPTION encountered - global_stop_event and dmd_off_event set')
-        exceptions_q.put(e)
+        threadict['exceptions_q'].put(e)
         return
 
-def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_stop_event, allow_vec_changes_event, exceptions_q ):
+def threaded_wait_for_vec( rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_source):
     ''' 
     Waits for the VEC file to be received from the Linux machine.
 
@@ -143,40 +145,39 @@ def threaded_wait_for_vec( rep_socket_vec, vec_received_confirmed_event, global_
         poller.register(rep_socket_vec, zmq.POLLIN)
 
         print(f'...VEC Thread: Waiting for vec file, timeout {timeout_vec} seconds')
-        while not global_stop_event.is_set() and elapsed_time < timeout_vec:
+        while not threadict['global_stop_event'].is_set() and elapsed_time < timeout_vec:
             elapsed_time = time.time() - start_time
             socks = dict(poller.poll(timeout=10)) # milliseconds 
             if rep_socket_vec in socks:
                 vec_content = rep_socket_vec.recv_string()
-                print("...VEC Thread: VEC received")
+                print("...VEC Thread: VEC received, waiting for auth to overwrite from DMD Thread")
                 # Wait for authorization to overwrite the vec file. If this event is not set
                 # it means the DMD is still showing the images (using the .VEC)
-                allow_vec_changes_event.wait()
-                with open("received.vec", "w") as file:
+                threadict['allow_vec_changes_event'].wait()
+                with open(vec_pathname_dmd_source, "w") as file:
                     file.write(vec_content)
                     # Send confirmation back to the server
                     rep_socket_vec.send_string("VEC CONFIRMED")
-                    vec_received_confirmed_event.set()
+                    threadict['vec_received_confirmed_event'].set()
                     print('...VEC Thread: Confirmation sent')
                     return
         else:
-            if global_stop_event.is_set():
+            if threadict['global_stop_event'].is_set():
                 print('...VEC Thread: Stopped from outside')
                 return
         # If the timeout expires, we set the global stop - 
         # It is the Linux machine responsibility to send the VEC file
         print("...VEC Thread: Timeout expired and no VEC received, setting global_stop_event")
-        global_stop_event.set()
-        # failure_event.set() # there was this line here, for an event that i removed sent to this function. I think its useless
+        threadict['global_stop_event'].set()
+        threadict['exceptions_q'].put(CustomException("Timeout expired waiting for VEC file"))
         return
     except Exception as e:
-        global_stop_event.set()
+        threadict['global_stop_event'].set()
         print('...VEC Thread: EXCEPTION encountered - global_stop_event set')
-        exceptions_q.put(e)
+        threadict['exceptions_q'].put(e)
         return
     
-def threaded_DMD(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, process_queue_DMD, dmd_off_event, 
-                 allow_vec_changes_event, global_stop_event, exceptions_q, log_file_DMD=None, testmode=True):
+def threaded_DMD(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, log_file_DMD=None, testmode=True):
     '''
     Launches the DMD projector process with the .VEC file of images specified in input_data_DMD.
 
@@ -196,7 +197,58 @@ def threaded_DMD(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, process_queue_DMD, d
             DMD_process = subprocess.Popen([DMD_EXE_PATH], cwd=DMD_EXE_DIR,
                                         stdin=subprocess.PIPE, stdout=log_file_DMD,
                                         stderr=log_file_DMD, text=True )    
-            process_queue_DMD.put(DMD_process)
+            threadict['process_queue_DMD'].put(DMD_process)
+            # DMD autofill, we need the process to be timed out to be able to close it
+            stdout, stderr = DMD_process.communicate(input=input_data_DMD, timeout=0.1)
+
+            print(f'...DMD Thread: DMD was launched, waiting ...')
+            DMD_process.wait()
+            print(f'...DMD Thread: DMD process terminated')
+        except subprocess.TimeoutExpired:
+            print('...DMD Thread: DMD was launched and can be terminated')
+    else:
+        print('...DMD Thread: DMD was launched in TEST mode')
+
+    try:        
+        while not threadict['dmd_off_event'].is_set():
+
+            pass
+        else:
+            if not testmode: DMD_process.terminate()
+            # Wait for authorization to overwrite the vec file. If this event is not set
+            # it means
+            threadict['allow_vec_changes_event'].set()
+            print('...DMD Thread: DMD process terminated, VEC file can be modified')
+            return
+        
+    except Exception as e:
+
+        print('...DMD Thread: EXCEPTION encountered - setting global_stop_event')
+        threadict['global_stop_event'].set()
+        threadict['exceptions_q'].put(e)
+        return
+
+def threaded_DMD_phase1(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, log_file_DMD, testmode=True):
+    '''
+    Launches the DMD projector process with the .VEC file of images specified in input_data_DMD.
+
+    It also listens for the dmd_off_event catched by threaded_rcv_dmd_off_signal() to terminate the process.
+
+    Before doing so, we need to wait for the process to be timed out, this is why we set a very short
+    timeout of 0.1 with .communicate().
+
+    Sets:
+      allow_vec_changes_event: to False, to prevent changes to the VEC file that vec_receiver_confirmer_thread could do    
+                            Only when the DMD terminated the VEC modifications are freed.
+    
+    '''
+    
+    if not testmode:
+        try:
+            DMD_process = subprocess.Popen([DMD_EXE_PATH], cwd=DMD_EXE_DIR,
+                                        stdin=subprocess.PIPE, stdout=log_file_DMD,
+                                        stderr=log_file_DMD, text=True )    
+            threadict['process_queue_DMD'].put(DMD_process)
             # DMD autofill, we need the process to be timed out to be able to close it
             stdout, stderr = DMD_process.communicate(input=input_data_DMD, timeout=0.1)
         except subprocess.TimeoutExpired:
@@ -204,25 +256,34 @@ def threaded_DMD(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, process_queue_DMD, d
     else:
         print('...DMD Thread: DMD was launched in TEST mode')
 
-    try:        
-        while not dmd_off_event.is_set():
+    try:    
+        if not testmode:
+            def flush_log():
+                while DMD_process.poll() is None:
+                    log_file_DMD.flush()
+                    time.sleep(1)
+                log_file_DMD.flush() # one last flush when the process finishes
+
+            flush_thread = threading.Thread(target=flush_log, )
+            flush_thread.start()    
+        while not threadict['dmd_off_event'].is_set():
             pass
         else:
             if not testmode: DMD_process.terminate()
             # Wait for authorization to overwrite the vec file. If this event is not set
             # it means
-            allow_vec_changes_event.set()
+            threadict['allow_vec_changes_event'].set()
             print('...DMD Thread: DMD process terminated, VEC file can be modified')
             return
         
     except Exception as e:
 
         print('...DMD Thread: EXCEPTION encountered - setting global_stop_event')
-        global_stop_event.set()
-        exceptions_q.put(e)
+        threadict['global_stop_event'].set()
+        threadict['exceptions_q'].put(e)
         return
 
-def launch_dmd_off_receiver(dmd_off_event, rep_socket_dmd, global_stop_event, exceptions_q):
+def launch_dmd_off_receiver(rep_socket_dmd, threadict, timeout_dmd_off_rcv):
     '''Launches the DMD Off cmd receiver Thread
     
     Sets:
@@ -232,14 +293,14 @@ def launch_dmd_off_receiver(dmd_off_event, rep_socket_dmd, global_stop_event, ex
     
     print('Launching DMD off cmd receiver listening thread')
     # Launch parallel function to listen for DMD off command
-    dmd_off_event.clear()
-    global_stop_event.clear()               
-    args = (rep_socket_dmd, dmd_off_event, global_stop_event, exceptions_q)
+    threadict['dmd_off_event'].clear()
+    threadict['global_stop_event'].clear()               
+    args = (rep_socket_dmd, threadict, timeout_dmd_off_rcv)
     DMD_off_listening_thread = threading.Thread(target=threaded_rcv_dmd_off_signal, args=args) 
     DMD_off_listening_thread.start()                
     return DMD_off_listening_thread
 
-def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, global_stop_event, allow_vec_changes_event, exceptions_q):
+def launch_vec_receiver_confirmer(rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_source):
     '''Launches the VEC receiver and confirmer thread
 
         It will wait for the VEC from Linux machine
@@ -250,7 +311,8 @@ def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, 
         Only after overwriting it will allow the main thread to continue with vec_received_confirmed_event is set.
         (vec_received_confirmed_event also confirms that the Linux machine has stopped discarding packets)
 
-
+    Args:
+        vec_pathname_dmd_source: the math of the vec file the DMD is using
     Sets:
         vec_received_confirmed_event: to False, this stops the main thread until the VEC is received
                                     and confirmed by threaded_wait_for_vec
@@ -260,13 +322,14 @@ def launch_vec_receiver_confirmer(vec_received_confirmed_event, rep_socket_vec, 
 
     print('Launching VEC confirmation thread')
     # Launch parallel function to wait for response
-    vec_received_confirmed_event.clear()
-    args = (rep_socket_vec, vec_received_confirmed_event, global_stop_event, allow_vec_changes_event, exceptions_q)
+    threadict['vec_received_confirmed_event'].clear()
+    args = (rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_source)
     vec_receiver_confirmer_thread = threading.Thread(target=threaded_wait_for_vec, args=args) 
     vec_receiver_confirmer_thread.start()
+
     return vec_receiver_confirmer_thread
 
-def launch_DMD_process_thread(allow_vec_changes_event, input_data_DMD, process_queue_DMD, dmd_off_event, global_stop_event, exceptions_q, log_file_DMD, testmode=True):
+def launch_DMD_process_thread(input_data_DMD, threadict, log_file_DMD, testmode=True):
     '''
     Launches the thread that starts the DMD projector.
     The thread will:
@@ -283,11 +346,14 @@ def launch_DMD_process_thread(allow_vec_changes_event, input_data_DMD, process_q
         print('Launching DMD subprocess thread')
     # Wait for authorization to overwrite the vec file. If this event is not set
     # it means the DMD is still showing the images (using the .VEC)
-    allow_vec_changes_event.clear()                
-    args_DMD_thread = (DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, process_queue_DMD, 
-                       dmd_off_event, allow_vec_changes_event, global_stop_event, exceptions_q, log_file_DMD, testmode)
-    DMD_thread      = threading.Thread(target=threaded_DMD, args=args_DMD_thread) 
+    threadict['allow_vec_changes_event'].clear()                
+    args_DMD_thread = (DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, log_file_DMD, testmode)
+    
+    # DMD_thread      = threading.Thread(target=threaded_DMD, args=args_DMD_thread) 
+    DMD_thread      = threading.Thread(target=threaded_DMD_phase1, args=args_DMD_thread) 
+
     DMD_thread.start()
+
     return DMD_thread
 
 def join_treads(threads):
@@ -322,6 +388,12 @@ def terminate_ort_process(ort_process, log_file_ort):
 def close_socket(socket):
     socket.setsockopt(zmq.LINGER, 0)
     socket.close()
+
+def close_sockets(sockets):
+    for socket in sockets:
+        if socket is not None:
+            print(f'Closing socket {socket}')
+            close_socket(socket)
 
 def generate_packet(buffer_nb):
     '''
@@ -359,11 +431,71 @@ def ask_to_continue(testmode):
         print("Continuing ...")
         return True
 
+def setup_win_thread_vars():
+    '''
+    Sets up the thread variables needed on Windows side
+    '''
+    vec_received_confirmed_event = threading.Event()
+    global_stop_event            = threading.Event()
+    dmd_off_event                = threading.Event()
+    # Wait for authorization to overwrite the vec file. If this event is not set
+    # it means
+    allow_vec_changes_event    = threading.Event()
+    process_queue_DMD          = queue.Queue()
+    exceptions_q               = queue.Queue()
+
+    threadict = {
+        'vec_received_confirmed_event': vec_received_confirmed_event,
+        'global_stop_event':            global_stop_event,
+        'dmd_off_event':                dmd_off_event,
+        'allow_vec_changes_event':      allow_vec_changes_event,
+        'process_queue_DMD':            process_queue_DMD,
+        'exceptions_q':                 exceptions_q
+    }
+
+    DMD_off_listening_thread, \
+        DMD_thread, vec_receiver_confirmer_thread \
+            = None, None, None
+
+    return threadict, DMD_off_listening_thread, DMD_thread, vec_receiver_confirmer_thread
+
+def setup_win_side_sockets():
+    '''
+    Sets up the VEC reception and DMD process control sockets.
+
+    The socket for packet sending is set up in the ORT subprocess.
+    '''
 
 
+    # Listening socket
+    context     = zmq.Context()
 
+    rep_socket_vec = context.socket(zmq.REP)
+    rep_socket_vec.bind(f"tcp://0.0.0.0:{REQ_SOCKET_VEC_PORT}")
 
+    rep_socket_dmd = context.socket(zmq.REP)
+    rep_socket_dmd.bind(f"tcp://0.0.0.0:{REQ_SOCKET_DMD_PORT}")
 
+    print('++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+    print('   Windows client is running...')
+
+    return context, rep_socket_vec, rep_socket_dmd
+
+def wait_for_VEC_file(rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_source):
+    '''
+    Waiter that waits for the VEC file to be received and confirmed by Win machine.
+
+    Used in the init_run_MEA_DMD to stop the execution until VEC is received.
+
+    It CALLS threaded_wait_for_VEC_file with launch_vec_receiver_confirmer to 
+    actually executed a dedicated thread for it. 
+    '''
+    vec_receiver_confirmer_thread = launch_vec_receiver_confirmer(
+        rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_source)
+    while not (threadict['vec_received_confirmed_event'] and threadict['global_stop_event'].is_set()):
+        time.sleep(1)
+
+    return vec_receiver_confirmer_thread
 
 
 

@@ -7,7 +7,6 @@ import argparse
 import sys
 import importlib.util
 import json, numpy
-import sys
 import numpy as np
 import zmq
 import scipy
@@ -205,8 +204,8 @@ socket.connect(f"tcp://{linux_ip}:{linux_port}")
 
 
 ### We create the file to dump the recording as a raw binary file
-if rawdata_path.exists():
-    os.remove(rawdata_path)
+# if rawdata_path.exists():
+    # os.remove(rawdata_path)
 data_file = open(rawdata_filename, 'wb')
 
 ### Definition of the lowpass filter
