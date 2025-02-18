@@ -77,7 +77,6 @@ def listener_linux( current_model ):
     #     'plot_counter_for_image'     : plot_counter_for_image,
     # }
 
-
     try:
         '''
         This while should 

@@ -5,8 +5,6 @@ import platform
 if platform.system() == 'Linux':
     import torch
 
-
-
 # Get the directory of this file and move one level up to the repo root
 current_dir = Path(__file__).resolve().parent
 REPO_DIR = current_dir.parent

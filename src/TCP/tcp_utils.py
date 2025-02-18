@@ -424,7 +424,7 @@ def rcv_and_decode_packet(
     if pull_socket_packets not in socks_main:
         elapsed_time = time.time() - start_times['last_received_packet']
         print('' if prev_no_packet_flag else '\n', end="")            
-        print(f"Server has not received packets in the last {(elapsed_time):.3f} seconds...",end="\r")
+        # print(f"Server has not received packets in the last {(elapsed_time):.3f} seconds...",end="\r")
         prev_no_packet_flag = True
         if elapsed_time > main_timeout and pair_img_counter > 0:
             threadict['global_stop_event'].set()
