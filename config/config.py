@@ -3,7 +3,11 @@ from pathlib import Path
 import numpy as np
 import platform
 if platform.system() == 'Linux':
+    onlinux = True
     import torch
+else:
+    onlinux = False
+
 
 # Get the directory of this file and move one level up to the repo root
 current_dir = Path(__file__).resolve().parent
@@ -23,7 +27,7 @@ PULL_SOCKET_PACKETS_PORT = '5555'
 REQ_SOCKET_VEC_PORT      = '5557'
 REQ_SOCKET_DMD_PORT      = '5558'
 
-Win_side_path = '.\\src\\Win_side\\'
+# region ________ Paths __________
 
 # Define the executables paths
 DMD_EXE_PATH    = r"C:/Users/user/Repositories/cppalp/x64/Release/film.exe"
@@ -38,14 +42,29 @@ img_dataset_path       = experiment_data_path / 'img_dataset'
 train_img_dataset_name = 'nat_img_train_dataset_PNAS_uint8.npy'
 test_img_dataset_name  = 'nat_img_test_dataset_PNAS_uint8.npy'
 
-electrode_info_path    = experiment_data_path  / 'electrode_info' / 'electrode_info.json'
+electrode_info_path     = experiment_data_path  / 'electrode_info' / 'electrode_info.json'
+electrode_raw_data_path = experiment_data_path / 'electrode_test_data' 
+
 bin_path               = experiment_data_path / 'bin_file'
 bin_pathname           = bin_path / 'bin_file.bin'
-
 vec_path               = session_data_tcp_path / 'vec_files' 
+
+# Windows main parameters 
+Win_side_path = REPO_DIR / 'src' / 'Win_side'
+
+ort_reader_output_pathname = Win_side_path / "output_ort_reader.log"
+dmd_output_pathname        = Win_side_path / "output_DMD.log" 
+
+# endregion
+
+# region ________ testmode parameters __________
+starting_buffer_nb = 12 # number of first buffer to be sent via TCP in testmode
+ending_buffer_nb   = 220
+# endregion
 
 
 # Theaded functions parameters
+
 timeout_vec         = 6 # seconds
 timeout_dmd_off_rcv = 5
 
@@ -98,16 +117,15 @@ lambda0_init = 1.
 
 
 # CUDA parameters
-if platform.system() == 'Linux':
+if onlinux:
     DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     TORCH_DTYPE = torch.float32
     torch.set_default_dtype(TORCH_DTYPE)
-
 # Seed for reproducibility
     torch.manual_seed(0)
     torch.manual_seed(0)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(0)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(0)
 np.random.seed(0)
 
 # Initial fit parameters
