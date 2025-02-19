@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 # Import the configuration file
 from config.config import *
 from gaussian_processes.Spatial_GP_repo import utils as GP_utils
+import src.BINVEC.binvec_utils as binvec_utils
 
 # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -99,57 +100,182 @@ def threaded_fit_end_queue_img(new_spike_count, current_img_id, current_model, t
     threadict['fit_finished_event'].set()
     return
 
-def threaded_vec_send_and_confirm( chosen_img_id, rndm_img_id, threadict, req_socket_vec,  max_gray_trgs=10, max_img_trgs=10, ending_gray_trgs=10):
+def threaded_vec_send_and_confirm( threadict, req_socket_vec, generate_vec, **kwargs):
     '''
-    Generates the vec file.
+    Thread that sends the provided VEC file to the client and waits for the confirmation
+
+    If generate_vec is True, generates a VEC with che chosen active image ID and random image ID with the provided parameters
+
+    If generate_vec is False, sends the provided VEC file
+
     Sends to the client the VEC file corresponding the the chosen image ID and wait for confirmation. 
     When received, set the event and allow the main thread to stop discarding packets
 
     Sets:
         vec_confirmation_event: to True when the client confirms the VEC file reception
 
-        vec_failure_event:      to True when the client does not confirm the VEC file reception
+        # vec_failure_event:    to True when the client does not confirm the VEC file reception
+
+
     '''
-    
-    with threadict['print_lock']: print(f"\n...VEC Thread: Generating VEC file for image ID: {chosen_img_id}", end="\n")
-    vec_content, vec_path = generate_vec_file(chosen_img_id=chosen_img_id, rndm_img_id=rndm_img_id, max_gray_trgs=max_gray_trgs,
-                                               max_img_trgs=max_img_trgs, ending_gray_trgs=ending_gray_trgs, save_file=False )
-    with threadict['print_lock']: print(f"\n...VEC Thread: Sending VEC file for image ID: {chosen_img_id}", end="\n")
 
-    # Send the VEC file to the client and wait for confirmation
-    req_socket_vec.send_string(vec_content)
-    # Poll the socket for a reply with a timeout, basically wait for tot milliseconds for a reply
-    poll_interval_vec = 100           # Milliseconds
-    timeout_vec       = 3             # Seconds
-    poller_vec        = zmq.Poller()
-    poller_vec.register(req_socket_vec, zmq.POLLIN)
-    start_time_vec = time.time()
-    with threadict['print_lock']:
-        print(f'\n...VEC Thread: Waiting VEC confirmation from the client, timeout in {timeout_vec} seconds...', end="\n")
+    try:
+        if generate_vec:
+            rndm_img_id     = kwargs.get("rndm_img_id")
+            chosen_img_id   = kwargs.get("chosen_img_id")
+            n_gray_trgs     = kwargs.get("n_gray_trgs")
+            n_img_trgs      = kwargs.get("n_img_trgs")
+            n_end_gray_trgs = kwargs.get("n_end_gray_trgs")
 
-    while not threadict['global_stop_event'].is_set() and (time.time() - start_time_vec) < timeout_vec:    
-        socks = dict(poller_vec.poll(timeout=poll_interval_vec))
-        if req_socket_vec in socks:
-            confirmation = req_socket_vec.recv_string()
-            if confirmation == 'VEC CONFIRMED':
-                threadict['vec_confirmation_event'].set()
-                with threadict['print_lock']: 
-                    print(f"\n...VEC Thread: Client confirmed VEC reception", end="\n")
-                return
-            else:
-                print(f"\n...VEC Thread: Error: The client replied with an unexpected message: {confirmation}", end="\n")
-                threadict['vec_failure_event'].set() 
-                return           
-    if threadict['global_stop_event'].is_set():
-        with threadict['print_lock']: print(f"\n...VEC Thread: Global stop from outside", end="\n")
+            with threadict['print_lock']: 
+                print(f"\n...VEC Thread: Generating VEC file for image ID: {chosen_img_id}", end="\n")
+            vec_content, vec_path = binvec_utils.generate_vec_file(
+                chosen_img_id, rndm_img_id, 
+                n_gray_trgs, n_img_trgs, 
+                n_end_gray_trgs, 
+                )
+            with threadict['print_lock']: 
+                print(f"\n...VEC Thread: Sending VEC file for image ID: {chosen_img_id}", end="\n")
+
+        if not generate_vec:
+            vec_content = kwargs.get("vec_content")
+
+        # Send the VEC file to the client and wait for confirmation
+        req_socket_vec.send_string(vec_content)
+        # Poll the socket for a reply with a timeout, basically wait for tot milliseconds for a reply
+        poll_interval_vec = 100           # Milliseconds
+        timeout_vec       = timeout_vec_reception             # Seconds
+        poller_vec        = zmq.Poller()
+        poller_vec.register(req_socket_vec, zmq.POLLIN)
+        start_time_vec = time.time()
+        with threadict['print_lock']:
+            print(f'\n...VEC Thread: Waiting VEC confirmation from the client, timeout in {timeout_vec} seconds...', end="\n")
+
+        while not threadict['global_stop_event'].is_set() and (time.time() - start_time_vec) < timeout_vec:    
+            socks = dict(poller_vec.poll(timeout=poll_interval_vec))
+            if req_socket_vec in socks:
+                confirmation = req_socket_vec.recv_string()
+                if confirmation == 'VEC CONFIRMED':
+                    threadict['vec_confirmation_event'].set()
+                    with threadict['print_lock']: 
+                        print(f"\n...VEC Thread: Client confirmed VEC reception", end="\n")
+                    return
+                else:
+                    print(f"\n...VEC Thread: Error: The client replied with an unexpected message: {confirmation}", end="\n")
+                    # threadict['vec_failure_event'].set() 
+                    return           
+        if threadict['global_stop_event'].is_set():
+            with threadict['print_lock']: print(f"\n...VEC Thread: Global stop from outside", end="\n")
+            return
+        else:
+            with threadict['print_lock']: 
+                print(f"\n...VEC Thread: Error: Timeout expired without VEC reception confirmation - setting Global stop", 
+                    end="\n")
+            # threadict['vec_failure_event'].set() 
+            threadict['global_stop_event'].set()
+            threadict['exceptions_q'].put(CustomException("Timeout expired without VEC reception confirmation"))  
+            return
+    except Exception as e:
+        with threadict['print_lock']:
+            print(f"\n...VEC Thread: Unexpected Error: {e}", end="\n")
+        threadict['global_stop_event'].set()
+        threadict['exceptions_q'].put(e)
         return
+
+def launch_vec_sender( threadict, req_socket_vec, generate_vec, **kwargs):
+    '''
+    Launches the thread that generates and sends the VEC file to Windows, and waits for the confirmation.
+
+    Sets:
+        vec_confirmation_event: to False, to allow the thread to set it True            
+    '''
+    if generate_vec:
+        rndm_img_id   = kwargs.get("rndm_img_id")
+        chosen_img_id = kwargs.get("chosen_img_id")
+        n_gray_trgs = kwargs.get("n_gray_trgs")
+        n_img_trgs  = kwargs.get("n_img_trgs")
+        end_gray_trgs = kwargs.get("n_end_gray_trgs")
+        kwargs = {'rndm_img_id':rndm_img_id, 'chosen_img_id':chosen_img_id,
+                  'n_gray_trgs': n_gray_trgs, 'n_img_trgs': n_img_trgs, 
+                  'n_end_gray_trgs': n_end_gray_trgs}
+        
+    if not generate_vec:
+        vec_content = kwargs.get("vec_content")
+        kwargs = {'vec_content': vec_content}
+        
+    threadict['vec_confirmation_event'].clear()
+    args = ( threadict, req_socket_vec, generate_vec )
+    vec_sender_thread = threading.Thread(target=threaded_vec_send_and_confirm, args=args, kwargs=kwargs) 
+    vec_sender_thread.start()
+    return vec_sender_thread
+
+def wait_for_vec_confirmation(pull_socket_packets, threadict):
+    '''
+    Waits for the VEC reception confirmation from Windows or for the global stop event to be set.
+
+    # While waiting for vec_confirmation_event or vec_failure_event or global_stop_event, all incoming packets are discarded
+
+    Raises:
+        CustomException: If the global_stop_event is set
+        # CustomException: If the vec_failure_event is set - do we need this event?
+
+    Returns:
+        None: If the vec_confirmation_event is set.
+
+    '''
+    poller = zmq.Poller()
+    poller.register(pull_socket_packets, zmq.POLLIN) 
+    while not threadict['vec_confirmation_event'].is_set() and not threadict['vec_failure_event'].is_set() and not threadict['global_stop_event'].is_set():
+        socks = dict(poller.poll(timeout=5))
+        start_time = time.time()
+        if pull_socket_packets in socks:
+            string_packet = pull_socket_packets.recv_string()
+            packet = json.loads(string_packet, cls=Decoder)
+            with threadict['print_lock']:
+                print(f"\rDiscarding up to packet {packet['buffer_nb']} while waiting for client to confirm new VEC...", end="")
+        else:
+            # logging.info('Client has not sent packets in the last 5 milliseconds...')#, end="\r")
+            pass # we dont break here, we let the thread break
+    if threadict['vec_confirmation_event'].is_set():
+        return
+    elif threadict['global_stop_event'].is_set():
+        raise CustomException("Global stop event set")
     else:
-        with threadict['print_lock']: 
-            print(f"\n...VEC Thread: Error: Timeout expired without VEC reception confirmation - setting Global stop", 
-                  end="\n")
-        threadict['vec_failure_event'].set() 
-        threadict['global_stop_event'].set()       
-        return
+        raise CustomException("vec_failure_event error - vec_confirmation_event not set and global_stop_event not set")            
+
+def generate_send_wait_vec( start_model, threadict, req_socket_vec, n_gray_trgs, n_img_trgs, n_end_gray_trgs ):
+    '''
+    Used in phase 1 for initial model.
+
+    Generates the Vec with start_model indexes parameters, 
+
+    Launches the vec_sender_thread to send vec and expect confirmation,
+
+    Sleeps until the confirmation event is set or the global_stop_event is set.
+
+    If Exception raises vec_sender_thread, it's added to threadict['exceptions_q'], and
+        global_stop_event is set. so it returns
+
+    '''
+    # Generate the vec file for the starting 50 images
+    vec_content, vec_pathname = binvec_utils.generate_vec_file(
+                active_img_ids = start_model['fit_parameters']['in_use_idx'],
+                rndm_img_ids   = torch.empty(0),
+                n_gray_trgs    = n_gray_trgs,
+                n_img_trgs     = n_img_trgs,
+                n_end_gray_trgs = n_end_gray_trgs,
+                ) 
+    # Send the vec file
+    vec_sender_thread = launch_vec_sender(
+                threadict, 
+                req_socket_vec,
+                generate_vec = False,
+                vec_content  = vec_content,) # kwarg
+
+    while not (threadict['vec_confirmation_event'].is_set() \
+            or threadict['global_stop_event'].is_set()):
+        time.sleep(1)
+    return
 
 def threaded_sender_dmd_off_signal(req_socket_dmd, threadict):
 
@@ -251,55 +377,6 @@ def wait_for_computation_and_discard(pull_socket_packets, threadict, poll_interv
         raise CustomException("Global stop event set")
     else:
         raise CustomException("Unknown error - fit_finished_event not set and global_stop_event not set")
-
-def launch_vec_sender(threadict, chosen_img_id, rndm_img_id, req_socket_vec, max_gray_trgs, max_img_trgs,):
-    '''
-    Launches the thread that generates and sends the VEC file to Windows, and waits for the confirmation.
-
-    Sets:
-        vec_confirmation_event: to False, to allow the thread to set it True            
-    '''
-    
-    threadict['vec_confirmation_event'].clear()
-    args = (chosen_img_id, rndm_img_id, threadict, req_socket_vec)
-    kwargs = {'max_gray_trgs': max_gray_trgs, 'max_img_trgs': max_img_trgs, 'ending_gray_trgs': ending_gray_trgs}
-    vec_sender_thread = threading.Thread(target=threaded_vec_send_and_confirm, args=args, kwargs=kwargs) 
-    vec_sender_thread.start()
-    return vec_sender_thread
-
-def wait_for_vec_confirmation(pull_socket_packets, threadict):
-    '''
-    Waits for the VEC reception confirmation from Windows or for the global stop event to be set.
-
-    While waiting for vec_confirmation_event or vec_failure_event or global_stop_event, all incoming packets are discarded
-
-    Raises:
-        CustomException: If the global_stop_event is set
-        CustomException: If the vec_failure_event is set - do we need this event?
-
-    Returns:
-        None: If the vec_confirmation_event is set.
-
-    '''
-    poller = zmq.Poller()
-    poller.register(pull_socket_packets, zmq.POLLIN) 
-    while not threadict['vec_confirmation_event'].is_set() and not threadict['vec_failure_event'].is_set() and not threadict['global_stop_event'].is_set():
-        socks = dict(poller.poll(timeout=5))
-        start_time = time.time()
-        if pull_socket_packets in socks:
-            string_packet = pull_socket_packets.recv_string()
-            packet = json.loads(string_packet, cls=Decoder)
-            with threadict['print_lock']:
-                print(f"\rDiscarding up to packet {packet['buffer_nb']} while waiting for client to confirm new VEC...", end="")
-        else:
-            # logging.info('Client has not sent packets in the last 5 milliseconds...')#, end="\r")
-            pass # we dont break here, we let the thread break
-    if threadict['vec_confirmation_event'].is_set():
-        return
-    elif threadict['global_stop_event'].is_set():
-        raise CustomException("Global stop event set")
-    else:
-        raise CustomException("vec_failure_event error - vec_confirmation_event not set and global_stop_event not set")            
 
 def update_plot(packet, ch_id, ax, fig, lines, count_relevant_buffs, plot_counter_for_image, max_lines=10):
     """
@@ -521,18 +598,20 @@ def setup_thread_vars():
 
     fit_finished_event         = threading.Event() # Event to signal when the computation thread is finished
     vec_confirmation_event     = threading.Event()
-    vec_failure_event          = threading.Event()
+    # vec_failure_event          = threading.Event()
     DMD_stopped_event          = threading.Event()
     global_stop_event          = threading.Event()
     print_lock                 = threading.Lock()
     set_time_lock              = threading.Lock()
-
+    
+    exceptions_q               = queue.Queue()
+    
     # Note that locks and events are mutable objects so when modified in a function they are modified in the global scope
     # other objects are immutable so I need to always access them through the dictionary to modify them in a function and have the changes reflected in the global scope
     threadict = {
         "fit_finished_event": fit_finished_event,
         "vec_confirmation_event": vec_confirmation_event,
-        "vec_failure_event": vec_failure_event,
+        # "vec_failure_event": vec_failure_event,
         "DMD_stopped_event": DMD_stopped_event,
         "global_stop_event": global_stop_event,
 
@@ -540,6 +619,7 @@ def setup_thread_vars():
         "dmd_off_set_time" : None,
         "print_lock"       : print_lock,
         "set_time_lock"    : set_time_lock,
+        "exceptions_q"     : exceptions_q
     }
     return threadict
 
