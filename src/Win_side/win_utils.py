@@ -152,7 +152,7 @@ def threaded_wait_for_vec( rep_socket_vec, threadict, timeout_vec, vec_pathname_
                 vec_content = rep_socket_vec.recv_string()
                 print("...VEC Thread: VEC received, waiting for auth to overwrite from DMD Thread")
                 # Wait for authorization to overwrite the vec file. If this event is not set
-                # it means the DMD is still showing the images (using the .VEC)
+                # it means the DMD is showing the images (using the .VEC)
                 threadict['allow_vec_changes_event'].wait()
                 with open(vec_pathname_dmd_source, "w") as file:
                     file.write(vec_content)
@@ -350,6 +350,7 @@ def launch_DMD_process_thread(input_data_DMD, threadict, log_file_DMD, testmode=
     args_DMD_thread = (DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, log_file_DMD, testmode)
     
     # DMD_thread      = threading.Thread(target=threaded_DMD, args=args_DMD_thread) 
+    print('Launching DMD subprocess thread PHASE 1')
     DMD_thread      = threading.Thread(target=threaded_DMD_phase1, args=args_DMD_thread) 
 
     DMD_thread.start()
@@ -481,7 +482,7 @@ def setup_win_side_sockets():
 
     return context, rep_socket_vec, rep_socket_dmd
 
-def wait_for_VEC_file(rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_source):
+def wait_vec_reception(rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_source):
     '''
     Waiter that waits for the VEC file to be received and confirmed by Win machine.
 
@@ -492,7 +493,8 @@ def wait_for_VEC_file(rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_s
     '''
     vec_receiver_confirmer_thread = launch_vec_receiver_confirmer(
         rep_socket_vec, threadict, timeout_vec, vec_pathname_dmd_source)
-    while not (threadict['vec_received_confirmed_event'] and threadict['global_stop_event'].is_set()):
+    while not (threadict['vec_received_confirmed_event'].is_set() \
+               or threadict['global_stop_event'].is_set()):
         time.sleep(1)
 
     return vec_receiver_confirmer_thread

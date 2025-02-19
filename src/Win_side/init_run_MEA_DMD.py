@@ -69,7 +69,8 @@ def init_run_MEA_DMD():
             rep_socket_dmd, threadict, timeout_dmd_off_rcv_phase1 )
 
         # Wait for VEC file 
-        vec_receiver_confirmer_thread = wait_for_VEC_file(
+        threadict['allow_vec_changes_event'].set()
+        vec_receiver_confirmer_thread = wait_vec_reception(
             rep_socket_vec, threadict, timeout_vec_phase1, vec_pathname_dmd_source_start )
         if threadict['global_stop_event'].is_set(): return
 
