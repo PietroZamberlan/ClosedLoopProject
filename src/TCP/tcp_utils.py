@@ -114,7 +114,7 @@ def threaded_vec_send_and_confirm( threadict, req_socket_vec, generate_vec, **kw
     Sets:
         vec_confirmation_event: to True when the client confirms the VEC file reception
 
-        # vec_failure_event:      to True when the client does not confirm the VEC file reception
+        # vec_failure_event:    to True when the client does not confirm the VEC file reception
 
 
     '''
@@ -177,7 +177,7 @@ def threaded_vec_send_and_confirm( threadict, req_socket_vec, generate_vec, **kw
             return
     except Exception as e:
         with threadict['print_lock']:
-            print(f"\n...VEC Thread: Error: {e}", end="\n")
+            print(f"\n...VEC Thread: Unexpected Error: {e}", end="\n")
         threadict['global_stop_event'].set()
         threadict['exceptions_q'].put(e)
         return
@@ -242,6 +242,40 @@ def wait_for_vec_confirmation(pull_socket_packets, threadict):
         raise CustomException("Global stop event set")
     else:
         raise CustomException("vec_failure_event error - vec_confirmation_event not set and global_stop_event not set")            
+
+def generate_send_wait_vec( start_model, threadict, req_socket_vec, n_gray_trgs, n_img_trgs, n_end_gray_trgs ):
+    '''
+    Used in phase 1 for initial model.
+
+    Generates the Vec with start_model indexes parameters, 
+
+    Launches the vec_sender_thread to send vec and expect confirmation,
+
+    Sleeps until the confirmation event is set or the global_stop_event is set.
+
+    If Exception raises vec_sender_thread, it's added to threadict['exceptions_q'], and
+        global_stop_event is set. so it returns
+
+    '''
+    # Generate the vec file for the starting 50 images
+    vec_content, vec_pathname = binvec_utils.generate_vec_file(
+                active_img_ids = start_model['fit_parameters']['in_use_idx'],
+                rndm_img_ids   = torch.empty(0),
+                n_gray_trgs    = n_gray_trgs,
+                n_img_trgs     = n_img_trgs,
+                n_end_gray_trgs = n_end_gray_trgs,
+                ) 
+    # Send the vec file
+    vec_sender_thread = launch_vec_sender(
+                threadict, 
+                req_socket_vec,
+                generate_vec = False,
+                vec_content  = vec_content,) # kwarg
+
+    while not (threadict['vec_confirmation_event'].is_set() \
+            or threadict['global_stop_event'].is_set()):
+        time.sleep(1)
+    return
 
 def threaded_sender_dmd_off_signal(req_socket_dmd, threadict):
 

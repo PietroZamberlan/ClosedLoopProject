@@ -41,39 +41,19 @@ def initial_listener_linux( electrode_info ):
 
     try:
         # Upload the natural image dataset
-        nat_img_tuple = main_utils.upload_natural_image_dataset( dataset_path=img_dataset_path, astensor=False )
+        nat_img_tuple = main_utils.upload_natural_image_dataset(
+            dataset_path=img_dataset_path, astensor=False )
 
         # Set up the start_model given the electrode information
-        start_model = main_utils.model_from_electrode_info( electrode_info, *nat_img_tuple )# dict of tensors
+        start_model = main_utils.model_from_electrode_info(
+            electrode_info, *nat_img_tuple )# dict of tensors
 
         # Plot the chosen RF on the checkerboard STA 
-        GP_utils.plot_hyperparams_on_STA( start_model, STA=None, ax=None )
-
-        # Generate the vec file for the starting 50 images
-        vec_content, vec_pathname = generate_vec_file(
-                    active_img_ids = start_model['fit_parameters']['in_use_idx'],
-                    rndm_img_ids   = torch.empty(0),
-                    n_gray_trgs    = n_gray_trgs,
-                    n_img_trgs     = n_img_trgs,
-                    n_end_gray_trgs = n_end_gray_trgs,
-                    ) 
+        GP_utils.plot_hyperparams_on_STA(
+            start_model, STA=None, ax=None )
         
-        vec_sender_thread = launch_vec_sender(
-                    threadict, 
-                    req_socket_vec,
-                    generate_vec = False,
-                    vec_content  = vec_content,) # kwarg
-        
-        vec_sender_thread = launch_vec_sender(
-            threadict, req_socket_vec, 
-            generate_vec=True,
-            
-            chosen_img_id=5, 
-            rndm_img_id  =10, 
-            n_gray_trgs=n_gray_trgs, 
-            n_img_trgs =n_img_trgs)
-        
-        
+        generate_send_wait_vec( 
+            start_model, threadict, req_socket_vec, n_gray_trgs, n_img_trgs, n_end_gray_trgs )
 
     except KeyboardInterrupt:
         print('Key Interrups')
@@ -102,11 +82,11 @@ def initial_listener_linux( electrode_info ):
         # print('Joining threads...')
         # computation_thread.join()
 
-
-
-
-
+        print('Checking for exceptions in queue...')
+        if not threadict['exceptions_q'].empty():
+            raise threadict['exceptions_q'].get()
     return
+
 
 if __name__ == "__main__":
 
