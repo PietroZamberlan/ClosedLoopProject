@@ -34,30 +34,73 @@ def initial_listener_linux( electrode_info ):
 
     # Set up the context and the sockets
     context, pull_socket_packets, req_socket_vec, req_socket_dmd = setup_lin_side_sockets()
-    print("Init linux server is running and waiting for data stream...")
+    print("Init linux server is running ...")
 
-    # Upload the natural image dataset
-    nat_img_tuple = main_utils.upload_natural_image_dataset( dataset_path=img_dataset_path, astensor=False )
+    # Set up the thread variables
+    threadict = setup_thread_vars() # Dictionary containing the threads and events
 
-    # Set up the start_model given the electrode information
-    start_model = main_utils.model_from_electrode_info( electrode_info, *nat_img_tuple )# dict of tensors
+    try:
+        # Upload the natural image dataset
+        nat_img_tuple = main_utils.upload_natural_image_dataset( dataset_path=img_dataset_path, astensor=False )
 
-    # Plot the chosen RF on the checkerboard STA 
-    GP_utils.plot_hyperparams_on_STA( start_model, STA=None, ax=None )
+        # Set up the start_model given the electrode information
+        start_model = main_utils.model_from_electrode_info( electrode_info, *nat_img_tuple )# dict of tensors
 
-    # Generate the vec file for the starting 50 images
-    vec_file, vec_pathname = generate_vec_file(
-                active_img_ids = start_model['fit_parameters']['in_use_idx'],
-                rndm_img_ids   = torch.empty(0),
-                n_gray_trgs    = n_gray_trgs,
-                n_img_trgs     = n_img_trgs,
-                n_ending_gray_trgs = n_ending_gray_trgs,
-                save_file=True,
-                testmode=testmode ) 
-    
+        # Plot the chosen RF on the checkerboard STA 
+        GP_utils.plot_hyperparams_on_STA( start_model, STA=None, ax=None )
 
+        # Generate the vec file for the starting 50 images
+        vec_content, vec_pathname = generate_vec_file(
+                    active_img_ids = start_model['fit_parameters']['in_use_idx'],
+                    rndm_img_ids   = torch.empty(0),
+                    n_gray_trgs    = n_gray_trgs,
+                    n_img_trgs     = n_img_trgs,
+                    n_end_gray_trgs = n_end_gray_trgs,
+                    ) 
+        
+        vec_sender_thread = launch_vec_sender(
+                    threadict, 
+                    req_socket_vec,
+                    generate_vec = False,
+                    vec_content  = vec_content,) # kwarg
+        
+        vec_sender_thread = launch_vec_sender(
+            threadict, req_socket_vec, 
+            generate_vec=True,
+            
+            chosen_img_id=5, 
+            rndm_img_id  =10, 
+            n_gray_trgs=n_gray_trgs, 
+            n_img_trgs =n_img_trgs)
+        
+        
 
+    except KeyboardInterrupt:
+        print('Key Interrups')
+        threadict['global_stop_event'].set()
 
+    finally:
+        if not threadict['global_stop_event'].is_set():
+            threadict['global_stop_event'].set()
+
+        time.sleep(0.2)
+        threadict['global_stop_event'].set()     
+        print('\nClosing pull socket...')
+        pull_socket_packets.setsockopt(zmq.LINGER, 0)
+        pull_socket_packets.close()
+        print('Closing vec req socket...')
+        req_socket_vec.setsockopt(zmq.LINGER, 0)
+        req_socket_vec.close()
+        print('Closing dmd req socket...')
+        req_socket_dmd.setsockopt(zmq.LINGER, 0)
+        req_socket_dmd.close()
+
+        
+            
+        print('Closing context...')
+        context.term()
+        # print('Joining threads...')
+        # computation_thread.join()
 
 
 

@@ -58,9 +58,7 @@ def generate_bin_file( nat_img_tuple ):
     # plt.imshoq(bin_file.read_frame(0))
     # plt.show(block=False)
 
-def generate_vec_file(active_img_ids, rndm_img_ids, 
-                              n_gray_trgs, n_img_trgs, n_ending_gray_trgs, 
-                              save_file=True, testmode=False):
+def generate_vec_file(active_img_ids, rndm_img_ids, n_gray_trgs, n_img_trgs, n_end_gray_trgs):
     """
     Generate the VEC file for the chosen image IDs and the random image IDs,
     with the following structure:
@@ -80,6 +78,7 @@ def generate_vec_file(active_img_ids, rndm_img_ids,
     - idx [1 to tot_imgs_dataset]: all the dataset images.
     We are basically generating a single BIN file and changing only the VEC one ( fastest way to do)
 
+
     Parameters:
 
         active_img_ids (int): The image IDs with respect to the BIN file
@@ -88,7 +87,7 @@ def generate_vec_file(active_img_ids, rndm_img_ids,
         
         n_gray_trgs (int): The number of lines representing the STARTING gray image.
         
-        n_ending_gray_trgs (int): The number of lines representing the ENDING gray image.
+        n_end_gray_trgs (int): The number of lines representing the ENDING gray image.
         
         n_img_trgs (int): The number of lines representing triggers of the natural image be it active or random
 
@@ -104,7 +103,7 @@ def generate_vec_file(active_img_ids, rndm_img_ids,
     n_loops       = n_active_imgs
     n_loop_frames =  n_gray_trgs+n_img_trgs
     n_loop_frames += n_gray_trgs+n_img_trgs if n_rndm_imgs != 0 else 0
-    n_frames_tot  = n_loops * n_loop_frames + n_ending_gray_trgs
+    n_frames_tot  = n_loops * n_loop_frames + n_end_gray_trgs
 
     lines = []
     # Write the lines
@@ -117,22 +116,21 @@ def generate_vec_file(active_img_ids, rndm_img_ids,
             rndm_img_id = rndm_img_ids[loop_n]        
             for _ in range(n_gray_trgs):     lines.append(f"0 0 0 0 0\n")  
             for _ in range(n_img_trgs):      lines.append(f"0 {rndm_img_id} 0 0 0\n")
-    for _ in range(n_ending_gray_trgs):      lines.append(f"0 0 0 0 0\n")
+    for _ in range(n_end_gray_trgs):      lines.append(f"0 0 0 0 0\n")
     file_content = ''.join(lines)
 
-    if save_file:
-        if n_rndm_imgs == 0:
-            file_name = f'{session_name}_VEC_start_model_{n_active_imgs}_imgs'
-        else:
-            file_name = f'{session_name}_VEC_img_id_{active_img_ids[0]}'
-        # Session name is in the vec_path in config.py
-        save_vec(file_content, dir_path=vec_path, file_name=file_name, testmode=testmode)
 
-        return file_content, vec_path / file_name
+    if n_rndm_imgs == 0:
+        file_name = f'{session_name}_VEC_start_model_{n_active_imgs}_imgs'
+    else:
+        file_name = f'{session_name}_VEC_img_id_{active_img_ids[0]}'
+    # Session name is in the vec_path in config.py
+    save_vec(file_content, dir_path=vec_path, file_name=file_name )
 
-    return file_content
+    return file_content, vec_path / file_name
 
-def save_vec( vec_content, dir_path, file_name, testmode=False):
+
+def save_vec( vec_content, dir_path, file_name):
 
     '''
     Save vec file, ask for permission to everwrite if we are not in testmode
@@ -140,19 +138,19 @@ def save_vec( vec_content, dir_path, file_name, testmode=False):
     if not os.path.exists( dir_path ):
         os.makedirs(dir_path)
     else:
-        if testmode:
-            print(f"Overwriting the directory {dir_path} - save_vec is in in TEST mode")
-            shutil.rmtree(dir_path)
-            os.makedirs(dir_path)
+        # if overwrite:
+        print(f"Overwriting the directory {dir_path}")
+        shutil.rmtree(dir_path)
+        os.makedirs(dir_path)
 
-        else:
-            answer = input(f"Directory {dir_path} already exists. Overwrite? [y/N]: ")
-            if answer.strip().lower().startswith('y'):
-                print(f"Overwriting the directory {dir_path}")
-                shutil.rmtree(dir_path)
-                os.makedirs(dir_path)
-            else:
-                raise ValueError(f"Directory {dir_path} already exists. No overwriting access. Exiting...")
+        # else:
+        #     answer = input(f"Directory {dir_path} already exists. Overwrite? [y/N]: ")
+        #     if answer.strip().lower().startswith('y'):
+        #         print(f"Overwriting the directory {dir_path}")
+        #         shutil.rmtree(dir_path)
+        #         os.makedirs(dir_path)
+        #     else:
+        #         raise ValueError(f"Directory {dir_path} already exists. No overwriting access. Exiting...")
 
     with open(dir_path / file_name, 'w') as file: 
         file.write(vec_content)
@@ -256,7 +254,7 @@ if __name__ == "__main__":
                 rndm_img_ids   = torch.empty(0),
                 n_gray_trgs    = n_gray_trgs,
                 n_img_trgs     = n_img_trgs,
-                n_ending_gray_trgs = n_ending_gray_trgs,
+                n_end_gray_trgs = n_end_gray_trgs,
                 save_file=True,
                 testmode = testmode )
 
@@ -267,7 +265,7 @@ if __name__ == "__main__":
             rndm_img_ids   = torch.empty(0),
             n_gray_trgs    = n_gray_trgs,
             n_img_trgs     = n_img_trgs,
-            n_ending_gray_trgs = n_ending_gray_trgs,
+            n_end_gray_trgs = n_end_gray_trgs,
             save_file=True,
             testmode = testmode )
 

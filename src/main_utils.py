@@ -5,7 +5,7 @@ import shutil
 from config.config     import *
 from src.TCP.tcp_utils import *
 from gaussian_processes.Spatial_GP_repo import utils as GP_utils
-from src.Win_side.generate_electrode_info import generate_electrode_info
+from src.Win_side.gen_and_save_electrode_info import gen_and_save_electrode_info
 '''
 This utils should have all the functions used in the main.py script but also the ones related 
 to the modeling that dont do the heavy lifting of the GP training, inference and utility estimation
@@ -24,7 +24,7 @@ def upload_electrode_info(electrode_info_path, print_info = True, testmode = Fal
     '''
     if testmode:
         print(f'upload_electrode_data in TEST mode, values generated from config.py')
-        electrode_info = generate_electrode_info(testmode)
+        electrode_info = gen_and_save_electrode_info(testmode)
 
     else:
         with open(electrode_info_path, 'r') as f:

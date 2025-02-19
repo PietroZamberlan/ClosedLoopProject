@@ -14,8 +14,8 @@ current_dir = Path(__file__).resolve().parent
 REPO_DIR = current_dir.parent
 GP_REPO_DIR = REPO_DIR / 'gaussian_processes' / 'Spatial_GP_repo'
 
-# testmode = True
-testmode = False
+testmode = True
+# testmode = False
 
 # Name of a try for the whole experiment. 
 # Its defined by the variables in this file
@@ -47,7 +47,7 @@ electrode_raw_data_path = experiment_data_path / 'electrode_test_data'
 
 bin_path               = experiment_data_path / 'bin_file'
 bin_pathname           = bin_path / 'bin_file.bin'
-vec_path               = session_data_tcp_path / 'vec_files' 
+vec_path               = session_data_tcp_path / 'vec_files_linux' 
 
 vec_pathname_dmd_source_start = r"C:\Users\user\Repositories\cppalp\data\binvecs\21_Pietro\VEC\source_vec_start"
 vec_pathname_dmd_source_active = r"C:\Users\user\Repositories\cppalp\data\binvecs\21_Pietro\VEC\source_vec_active"
@@ -73,6 +73,7 @@ timeout_vec_phase1         = 10 # time before stopping windows server with no VE
 timeout_vec_phase2         = 10 # seconds
 timeout_dmd_off_rcv_phase1 = 300 # 5 mins before the DMD is turned off automatically
 timeout_dmd_off_rcv_phase2 = 5
+timeout_vec_reception      = 5
 
 # DMD executable parameters
 pietro_dir_DMD = "21"
@@ -84,12 +85,12 @@ n_frames_LUT   = "15"
 raw_data_file_path = REPO_DIR / 'data' / 'raw_data.raw'
 
 min_time_dmd_off = 3.5    # Min time to wait from the DMD off confirmation to be sure its really off
-max_time_dmd_off = 7      # Maximum time from the confirmation of being off to be sure that it is not starting again ( The windows server is stopping )
+time_dmd_off = 7      # Maximum time from the confirmation of being off to be sure that it is not starting again ( The windows server is stopping )
 
 # DMD triggers and image correspondence parameters
 n_gray_trgs        = 60
 n_img_trgs         = 60
-n_ending_gray_trgs = 20
+n_end_gray_trgs = 20
 
 
 # Image dataset parameters
