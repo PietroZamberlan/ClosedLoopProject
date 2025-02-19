@@ -52,8 +52,25 @@ def initial_listener_linux( electrode_info ):
         GP_utils.plot_hyperparams_on_STA(
             start_model, STA=None, ax=None )
         
+        # Send the VEC file and wait for confirmed reception
         generate_send_wait_vec( 
             start_model, threadict, req_socket_vec, n_gray_trgs, n_img_trgs, n_end_gray_trgs )
+
+        # Receive response packets and count triggers
+        # receive_responses( start_model, threadict, pull_socket_packets, n_img_trgs )
+        time.sleep(5) # simulate reception of responses
+
+        # Send the DMD off command and wait for confirmation 
+        DMD_off_sender_thread = launch_dmd_off_sender( req_socket_dmd, threadict)
+
+        # Train the starting GP model with the responses
+        # start_model = train_GP_with_responses( start_model, threadict )
+
+        # Wait for DMD stop command to be received ( not necessary when receiving responses )
+        while True:
+            if threadict['global_stop_event'].wait(timeout=0.1):       break
+            if threadict['DMD_stopped_event'].set().wait(timeout=0.1): break
+            pass
 
     except KeyboardInterrupt:
         print('Key Interrups')

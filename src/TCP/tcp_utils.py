@@ -278,17 +278,23 @@ def generate_send_wait_vec( start_model, threadict, req_socket_vec, n_gray_trgs,
     return
 
 def threaded_sender_dmd_off_signal(req_socket_dmd, threadict):
+    '''
+    Sends a signal to the Windows machine to turn off the DMD and waits for its confirmation
 
+    timeout_dmd_off_confirmation : How long the linux machine waits for confirmation of reception of 
+        DMD off command before stopping the server
+    
+    '''
     req_socket_dmd.send_string("DMD OFF")
-    timeout_dmd    = 10
+    timeout_dmd_off_confirmation = timeout_dmd_off_snd
     with threadict['print_lock']: 
-        print(f"\n...DMD off Thread: command sent, response timeout {timeout_dmd} seconds", 
+        print(f"\n...DMD off Thread: command sent, response timeout {timeout_dmd_off_confirmation} seconds", 
               end="\n")
     poller = zmq.Poller()       
     poller.register(req_socket_dmd, zmq.POLLIN)
     start_time_dmd = time.time()
 
-    while not threadict['global_stop_event'].is_set() and (time.time() - start_time_dmd) < timeout_dmd:    
+    while not threadict['global_stop_event'].is_set() and (time.time() - start_time_dmd) < timeout_dmd_off_confirmation:    
         socks = dict(poller.poll(timeout=100))
         if req_socket_dmd in socks:
             confirmation = req_socket_dmd.recv_string() # The client replies sending back the same message
@@ -301,14 +307,17 @@ def threaded_sender_dmd_off_signal(req_socket_dmd, threadict):
                 return
             else: 
                 with threadict['print_lock']: 
-                    print(f"\n...DMD off Thread: Client replied to DMD request with unexpected message: {confirmation}", end="\n")        
+                    print(f"\n...DMD off Thread: Error, client replied to DMD request with unexpected message: {confirmation}", end="\n")        
+                threadict['exceptions_q'].put(CustomException("Client replied to DMD request with unexpected message"))
                 return
             
     if threadict['global_stop_event'].is_set():
         with threadict['print_lock']: print(f"\n...DMD off Thread: Global stop from outside", end="\n")
         return
     else:
-        with threadict['print_lock']: print(f"\n...DMD off Thread: Client didn't confirm DMD off, timeout", end="\n")        
+        with threadict['print_lock']: print(f"\n...DMD off Thread: Client didn't confirm DMD off, timeout", end="\n")  
+        threadict['exceptions_q'].put(CustomException("Timeout expired without DMD off confirmation"))
+        threadict['global_stop_event'].set()
         return
 
 def time_since_event_set(event_set_time):
@@ -656,5 +665,24 @@ def update_image_pair_values(image_pair_values, **kwargs):
             print(f"Key '{key}' not present in image_pair_values") 
             
     return image_pair_values
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

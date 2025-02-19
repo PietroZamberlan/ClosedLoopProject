@@ -49,8 +49,9 @@ bin_path               = experiment_data_path / 'bin_file'
 bin_pathname           = bin_path / 'bin_file.bin'
 vec_path               = session_data_tcp_path / 'vec_files_linux' 
 
-vec_pathname_dmd_source_start = r"C:\Users\user\Repositories\cppalp\data\binvecs\21_Pietro\VEC\source_vec_start"
+vec_pathname_dmd_source_start  = r"C:\Users\user\Repositories\cppalp\data\binvecs\21_Pietro\VEC\source_vec_start"
 vec_pathname_dmd_source_active = r"C:\Users\user\Repositories\cppalp\data\binvecs\21_Pietro\VEC\source_vec_active"
+bin_pathname_dmd_source        = r"C:\Users\user\Repositories\cppalp\data\binvecs\21_Pietro\BIN\binfile.bin"
 
 # Windows main parameters 
 Win_side_path = REPO_DIR / 'src' / 'Win_side'
@@ -69,11 +70,12 @@ ending_buffer_nb   = 220
 
 
 # Theaded functions parameters
-timeout_vec_phase1         = 10 # time before stopping windows server with no VEC received
-timeout_vec_phase2         = 10 # seconds
-timeout_dmd_off_rcv_phase1 = 300 # 5 mins before the DMD is turned off automatically
-timeout_dmd_off_rcv_phase2 = 5
-timeout_vec_reception      = 5
+timeout_vec_phase1           = 10 # time before stopping windows server with no VEC received
+timeout_vec_phase2           = 10 # seconds
+timeout_dmd_off_rcv_phase1   = 300 # 5 mins before the DMD is turned off automatically
+timeout_dmd_off_rcv_phase2   = 5
+timeout_dmd_off_snd          = 5   # How long linux machine waits for confirmation of reception of DMD off command 
+timeout_vec_reception        = 5
 
 # DMD executable parameters
 pietro_dir_DMD = "21"
