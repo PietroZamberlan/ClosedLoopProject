@@ -211,7 +211,6 @@ def threaded_DMD(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, log_file_
 
     try:        
         while not threadict['dmd_off_event'].is_set():
-
             pass
         else:
             if not testmode: DMD_process.terminate()
@@ -240,7 +239,10 @@ def threaded_DMD_phase1(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, lo
     Sets:
       allow_vec_changes_event: to False, to prevent changes to the VEC file that vec_receiver_confirmer_thread could do    
                             Only when the DMD terminated the VEC modifications are freed.
-    
+
+    This thread has NO timeout since it relies on the reception of a stop event.
+    Only the elicited spikes count recorded by the Linux machine are used as indication 
+    to stop the DMD process.
     '''
     
     if not testmode:
@@ -252,21 +254,21 @@ def threaded_DMD_phase1(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, lo
             # DMD autofill, we need the process to be timed out to be able to close it
             stdout, stderr = DMD_process.communicate(input=input_data_DMD, timeout=0.1)
         except subprocess.TimeoutExpired:
-            print('...DMD Thread: DMD was launched and can be terminated')
+            print('...DMD Thread: DMD was launched and can be terminated, waiting for off command')
     else:
-        print('...DMD Thread: DMD was launched in TEST mode')
+        print('...DMD Thread: DMD was launched in TEST mode, waiting for off command')
 
     try:    
         if not testmode:
-            def flush_log():
+            def flush_log(): # to make sure all the produced output is printed on the logfile
                 while DMD_process.poll() is None:
                     log_file_DMD.flush()
                     time.sleep(1)
                 log_file_DMD.flush() # one last flush when the process finishes
-
+                return
             flush_thread = threading.Thread(target=flush_log, )
             flush_thread.start()    
-        while not threadict['dmd_off_event'].is_set():
+        while not (threadict['dmd_off_event'].is_set() or threadict['global_stop_event'].is_set()):
             pass
         else:
             if not testmode: DMD_process.terminate()
@@ -276,6 +278,7 @@ def threaded_DMD_phase1(DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, lo
             print('...DMD Thread: DMD process terminated, VEC file can be modified')
             return
         
+
     except Exception as e:
 
         print('...DMD Thread: EXCEPTION encountered - setting global_stop_event')
@@ -344,8 +347,8 @@ def launch_DMD_process_thread(input_data_DMD, threadict, log_file_DMD, testmode=
         print('Launching DMD subprocess thread in TEST mode')
     else:    
         print('Launching DMD subprocess thread')
-    # Wait for authorization to overwrite the vec file. If this event is not set
-    # it means the DMD is still showing the images (using the .VEC)
+
+
     threadict['allow_vec_changes_event'].clear()                
     args_DMD_thread = (DMD_EXE_PATH, DMD_EXE_DIR, input_data_DMD, threadict, log_file_DMD, testmode)
     

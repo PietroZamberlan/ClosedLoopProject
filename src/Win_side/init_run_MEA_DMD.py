@@ -75,20 +75,25 @@ def init_run_MEA_DMD():
         if threadict['global_stop_event'].is_set(): return
 
         # 3.
-        # Start DMD projector    
+        # Start DMD projector with phase 1 parameters ( no advanced features )
         log_file_DMD = open(dmd_start_output_pathname, "w")
 
-        exe_params = [pietro_dir_DMD, bin_number, vec_number, frame_rate, advanced_f, n_frames_LUT]
+        exe_params = [pietro_dir_DMD, bin_number, vec_number_phase1, 
+                      frame_rate, advanced_f_phase1]
         input_data_DMD = "\n".join(exe_params)+"\n"
 
+        # Launches dmd and waits for stop command
         DMD_thread = launch_DMD_process_thread( 
             input_data_DMD, threadict, log_file_DMD,
             testmode=testmode )
-
+        
         # 4.
         # Wait for DMD stop command
-        # while threadict['dmd'] \
-            # not threadict['global_stop_event']
+        while True:
+            if threadict['global_stop_event'].wait(timeout=0.1): break
+            if threadict['dmd_off_event'].wait(timeout=0.1): break
+            pass
+
 
 
     except KeyboardInterrupt:
