@@ -217,26 +217,26 @@ def listener_linux( current_model ):
             print(f" TOT triggers detected: {n_trgs_tot_in_pair:}.", end='')
 
             # if image is still in the gray, continue
-            if n_trgs_tot_in_pair <= n_gray_trgs:
-                print(f" Gray   : {n_trgs_tot_in_pair:} trgs <= {n_gray_trgs:>2}, waiting...")
+            if n_trgs_tot_in_pair <= n_gray_trgs_init:
+                print(f" Gray   : {n_trgs_tot_in_pair:} trgs <= {n_gray_trgs_init:>2}, waiting...")
                 single_nat_img_spk_train = np.array([])
                 continue
 
             # else: first gray has finished, start counting the natural image triggers
 
             # region ________ Possible initial and ending gray triggers removal________
-            # n of natural img in this buffer is the number of total triggers minus the _amount of triggers might have been missing to reach the n_gray_trgs, in the buffer_
-            # this quantity is positive if this trigger was the one getting over the n_gray_trgs
+            # n of natural img in this buffer is the number of total triggers minus the _amount of triggers might have been missing to reach the n_gray_trgs_init, in the buffer_
+            # this quantity is positive if this trigger was the one getting over the n_gray_trgs_init
             # otherwise it is negative
 
-            # number of triggers of the current buffer that have been used to reach the n_gray_trgs
+            # number of triggers of the current buffer that have been used to reach the n_gray_trgs_init
             n_trigs_tot_prev      = n_trgs_tot_in_pair - n_trgs_buffer        # previous count of total triggers
-            n_trgs_spent_for_gray = n_gray_trgs - n_trigs_tot_prev  # triggers of this buffer that have been used to reach the n_gray_trgs
+            n_trgs_spent_for_gray = n_gray_trgs_init - n_trigs_tot_prev  # triggers of this buffer that have been used to reach the n_gray_trgs_init
             # If none of the current buffer triggers where part of the gray, n_starting_gray_trgs = 0
             if n_trgs_spent_for_gray <= 0: 
                 n_starting_gray_trgs = 0
             else:
-                n_starting_gray_trgs = n_trgs_spent_for_gray          # triggers of this buffer that have been used to reach the n_gray_trgs
+                n_starting_gray_trgs = n_trgs_spent_for_gray          # triggers of this buffer that have been used to reach the n_gray_trgs_init
 
             # Remove possible starting gray triggers from counters and indices array
             n_trgs_img      = n_trgs_buffer - n_starting_gray_trgs    # n of natural img triggers in this buffer
@@ -244,7 +244,7 @@ def listener_linux( current_model ):
             idx_natural_img_start = detected_triggers_idx[-n_trgs_img:] 
 
             # now do the same for the ending gray triggers. This buffer might be at the end of the natural image, and already have some gray triggrs
-            n_trgs_already_gray =  n_trgs_img_tot_in_pair - n_img_trgs
+            n_trgs_already_gray =  n_trgs_img_tot_in_pair - n_img_trgs_init
             if n_trgs_already_gray > 0:
                 n_ending_gray_trgs = n_trgs_already_gray
             else:
@@ -252,7 +252,7 @@ def listener_linux( current_model ):
 
             # Remove possible ending gray triggers
             n_trgs_img     -= n_ending_gray_trgs                       # n of natural img triggers in this buffer
-            n_trgs_img_tot_in_pair -= n_ending_gray_trgs                       # n of natural img triggers until now
+            n_trgs_img_tot_in_pair -= n_ending_gray_trgs               # n of natural img triggers until now
             idx_natural_img_start = idx_natural_img_start[:None if n_ending_gray_trgs==0 else -n_ending_gray_trgs]         
             # warn 
             if n_ending_gray_trgs > 0 or n_starting_gray_trgs > 0:
@@ -273,21 +273,21 @@ def listener_linux( current_model ):
             # Peaks idxs corresponding to the natural image for the relevant buffer train
             single_nat_img_spk_train = np.append(single_nat_img_spk_train, natural_peaks_buff) 
 
-            if n_trgs_img_tot_in_pair < n_img_trgs:
-                print(f" Natural: {n_trgs_img_tot_in_pair:>2} trgs <= {n_img_trgs}, waiting...",)
+            if n_trgs_img_tot_in_pair < n_img_trgs_init:
+                print(f" Natural: {n_trgs_img_tot_in_pair:>2} trgs <= {n_img_trgs_init}, waiting...",)
                 continue
 
         # endregion
         
             # _____________________________ Enough natural triggers presented _____________________________
 
-            if n_trgs_img_tot_in_pair > n_img_trgs:
+            if n_trgs_img_tot_in_pair > n_img_trgs_init:
                 print(f"   Best image is being computed...",)
                 continue
 
             
             # region _________ Start the fit and wait while discarding packets ________
-            # if n_trgs_img_tot_in_pair == n_img_trgs:
+            # if n_trgs_img_tot_in_pair == n_img_trgs_init:
 
             n_ch_spikes = single_nat_img_spk_train.shape[0]
 
@@ -330,8 +330,8 @@ def listener_linux( current_model ):
                 threadict, req_socket_vec, generate_vec=True,
                 chosen_img_id=chosen_img_id, 
                 rndm_img_id  =rndm_img_id, 
-                n_gray_trgs=n_gray_trgs, 
-                n_img_trgs =n_img_trgs)
+                n_gray_trgs=n_gray_trgs_init, 
+                n_img_trgs =n_img_trgs_init)
 
             # Wait for the VEC reception confirmation from Windows while discarding packets
             wait_for_vec_confirmation( pull_socket_packets, threadict)

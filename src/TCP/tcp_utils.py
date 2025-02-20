@@ -34,7 +34,30 @@ class Decoder(json.JSONDecoder):
             return obj['__bytes__'].encode(obj['__encoding__'])
         return obj
 
-def count_triggers( trigger_ch_sequence, trigger_diff_threshold=2000):
+class ImagePacket:
+    def __init__(self):
+        self.current_image = self.CurrentImage()
+
+        self.image_counter = 0
+
+    class CurrentImage:
+        '''
+        Current image refers to the pair gray+natural image being shown, 
+        for a total of n_gray_trgs_init + n_img_trgs_init triggers.
+        '''
+        def __init__(self):
+            self.reset()
+
+        def reset(self):
+            self.consecutive_relevant_buffs = 0
+            self.n_trgs_tot_in_pair = 0
+            self.n_trgs_img_tot_in_pair = 0
+            self.detected_triggers_idx_tot = []
+            self.detected_triggers_idx = []
+            self.plot_counter_for_image = 0
+
+
+def count_triggers( trigger_ch_sequence, trigger_diff_threshold):
 
     '''Counts the triggers in the provided array, tipically an aquired buffer.
     trigger_ch_sequence:    np.array - the complete sequence of signals aquired from the trigger channel
@@ -601,7 +624,7 @@ def setup_lin_side_sockets():
 
     return context, pull_socket_packets, req_socket_vec, req_socket_dmd
 
-def setup_thread_vars():
+def setup_thread_vars_linux():
     # Thread variables
     img_id_queue = queue.Queue()
 
@@ -614,6 +637,14 @@ def setup_thread_vars():
     set_time_lock              = threading.Lock()
     
     exceptions_q               = queue.Queue()
+    packets_q                  = queue.Queue()
+
+    # Set up start times var
+    start_times = {'global_start': time.time()}
+    start_times['last_received_packet'] = start_times['global_start']
+    start_times['while_start']          = start_times['global_start']
+    start_times['last_rel_packet']      = start_times['global_start']
+
     
     # Note that locks and events are mutable objects so when modified in a function they are modified in the global scope
     # other objects are immutable so I need to always access them through the dictionary to modify them in a function and have the changes reflected in the global scope
@@ -625,10 +656,14 @@ def setup_thread_vars():
         "global_stop_event": global_stop_event,
 
         "img_id_queue"     : img_id_queue,
+        "exceptions_q"     : exceptions_q,
+        "packets_q"        : packets_q,
+
+        "start_times"      : start_times,
         "dmd_off_set_time" : None,
+
         "print_lock"       : print_lock,
         "set_time_lock"    : set_time_lock,
-        "exceptions_q"     : exceptions_q
     }
     return threadict
 
@@ -666,13 +701,123 @@ def update_image_pair_values(image_pair_values, **kwargs):
             
     return image_pair_values
 
+def threaded_rcv_and_decode_packet(
+        pull_socket_packets, threadict, image_packet):
 
+    '''
+    Polls the pull socket for packets and adds them to the queue if there are any.
 
+    Returns:
+    '''
+    try:
 
+        start_times = threadict['start_times']
+        poller_main = zmq.Poller()
+        poller_main.register(pull_socket_packets, zmq.POLLIN)
 
+        while not threadict['global_stop_event'].is_set():
+            socks_main = dict(poller_main.poll(timeout=100))  # with a poller this while can keep going even if the stream stops
+            if pull_socket_packets not in socks_main:
+                elapsed_time = time.time() - start_times['last_received_packet']
+                print('' if prev_no_packet_flag else '\n', end="")            
+                print(f"Server has not received packets in the last {(elapsed_time):.3f} seconds...",end="\r")
+                prev_no_packet_flag = True
+                if elapsed_time > main_timeout_rcv_packet and image_packet.n_rcvd_imgs > 0:
+                    # timeout expired and while receiving images ( not sure its correct to stop here)
+                    print('\n')
+                    threadict['global_stop_event'].set()
+                    print(f"\n...RCV Thread: Stopped from outside")
+                return
 
+            else:
+                # Receive and decode packet
+                string_packet  = pull_socket_packets.recv_string()
+                packet         = json.loads(string_packet, cls=Decoder)
+                
+                start_times['last_received_packet'] = time.time()
+                # print('\n' if prev_no_packet_flag else '', end="")
+                print('\n', end="")
+                prev_no_packet_flag = False
+                threadict['packets_q'].put(packet)
 
+    except Exception as e:
+        threadict['global_stop_event'].set()
+        threadict['exceptions_q'].put(e)
+        with threadict['print_lock']:
+            print(f"\n...RCV Thread: Unexpected Error: {e}", end="\n")
+        return
 
+def launch_threaded_rcv_and_decode( pull_socket_packets, threadict, image_packet):
+    '''
+    Launches the thread that receives and decodes packets from the pull socket and adds them to the queue
+    '''
+    print('Starting the receiving thread')
+    args = (pull_socket_packets, threadict, image_packet)
+    rcv_thread = threading.Thread(target=threaded_rcv_and_decode_packet, args=args) 
+    rcv_thread.start()
+    return rcv_thread
+
+def count_triggers_init( trigger_ch_sequence, trigger_diff_threshold):
+
+    '''Counts the triggers in the provided array, tipically an aquired buffer.
+    trigger_ch_sequence:    np.array - the complete sequence of signals aquired from the trigger channel
+    trigger_diff_threshold: int      - the difference threshold between two consecutive signals in the sequence to be considered a trigger
+
+    Returns:
+    n_triggers:             int      - the number of triggers detected in the sequence
+    detected_trigger_idx:   np.array - the indexes of the triggers detected in the sequence
+
+    '''
+    
+    start = 0
+    end   = trigger_ch_sequence.shape[0]
+
+    # trigger counts in the sequence
+    n_triggers = 0
+
+    latest_diffs = np.array([]) # array to store the last 10 signal differences. If any of these is under the trigger threshold, we are still treating the same trigger
+    detected_trigger_idx = np.array([]) # array to store the indexes of the triggers detected
+    trg_close_to_end   = False
+    trg_close_to_start = False
+    for j in range(start, end-1):
+        last_diff = (trigger_ch_sequence[j+1] - trigger_ch_sequence[j])
+
+        if last_diff >= trigger_diff_threshold:
+            # if none of the latest 10 differences was above trigger_diff_threshold, then we have a new trigger
+            if np.all(latest_diffs < trigger_diff_threshold):
+                n_triggers += 1
+                detected_trigger_idx = np.append(detected_trigger_idx, j)
+                # if this trigger has been detected in the first or last 10 detections, flag the buffer
+                if end-j < 10 :
+                    # print(f" last diff was {last_diff} ")
+                    trg_close_to_end = True
+                elif j < 10:
+                    trg_close_to_start = True
+
+        latest_diffs = np.append(latest_diffs, last_diff)
+        if latest_diffs.shape[0] > 10:
+            latest_diffs = latest_diffs[1:]
+    detected_trigger_idx = detected_trigger_idx.astype(int)
+
+    border_trgs = {'trgs_close_to_end': trg_close_to_end, 'trgs_close_to_start': trg_close_to_start}
+
+    return n_triggers, detected_trigger_idx, border_trgs
+
+def remove_trg_if_close_to_end_start( threadict, packet, n_trgs, trgs_idx, border_trgs_flag, prev_border_trgs_flag ):
+    '''
+    Checks if the flags prev_border_trgs_flag is signaling a triger close to the end of the buffer
+    of the previous acquired buffer and a trigger close to the start of the current buffer.
+    '''
+
+    if prev_border_trgs_flag['trgs_close_to_end'] and border_trgs_flag['trgs_close_to_start']:
+        with threadict['print_lock']:
+            print(f'''\nBuffer {packet['buffer_nb']} detected a trigger close to the start, 
+                        and the previous did so close to the end, reducing n_trgs_buffer: {n_trgs} by 1''')
+            print(f"\nTrigger number reduced by one for buffer {packet['buffer_nb']}")
+        n_trgs -= 1 
+        trgs_idx = trgs_idx[1:]
+
+    return n_trgs, trgs_idx, border_trgs_flag
 
 
 
