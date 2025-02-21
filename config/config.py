@@ -68,13 +68,17 @@ ending_buffer_nb   = 220
 # endregion
 
 
-# Theaded functions parameters
+# Theaded functions timeouts
 timeout_vec_phase1           = 10 # time before stopping windows server with no VEC received
 timeout_vec_phase2           = 10 # seconds
 timeout_dmd_off_rcv_phase1   = 300 # 5 mins before the DMD is turned off automatically
 timeout_dmd_off_rcv_phase2   = 5
 timeout_dmd_off_snd          = 5   # How long linux machine waits for confirmation of reception of DMD off command 
 timeout_vec_reception        = 5
+
+# Main timeouts
+main_timeout_rcv_packet      = 2 # amount of time linu waits for packets before shutting down
+
 
 # DMD executable parameters
 pietro_dir_DMD    = "21"
@@ -91,8 +95,8 @@ min_time_dmd_off = 3.5    # Min time to wait from the DMD off confirmation to be
 time_dmd_off = 7      # Maximum time from the confirmation of being off to be sure that it is not starting again ( The windows server is stopping )
 
 # DMD triggers and image correspondence parameters
-n_gray_trgs        = 60
-n_img_trgs         = 60
+n_gray_trgs_init        = 60
+n_img_trgs_init         = 60
 n_end_gray_trgs = 20
 
 
