@@ -42,7 +42,8 @@ img_dataset_path       = experiment_data_path / 'img_dataset'
 train_img_dataset_name = 'nat_img_train_dataset_PNAS_uint8.npy'
 test_img_dataset_name  = 'nat_img_test_dataset_PNAS_uint8.npy'
 
-electrode_info_path     = experiment_data_path  / 'electrode_info' / 'electrode_info.json'
+electrode_info_path     = experiment_data_path / 'electrode_info'
+electrode_info_pathname = experiment_data_path / 'electrode_info' / 'electrode_info.json'
 electrode_raw_data_path = experiment_data_path / 'electrode_test_data' 
 
 bin_path               = experiment_data_path / 'bin_file'
