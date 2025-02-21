@@ -420,9 +420,9 @@ def generate_packet(buffer_nb):
 
     return packet
 
-def ask_to_continue(testmode):
+def ask_to_continue(testmode, electrode_info_filename):
     if not testmode: 
-        choice = input(f"Transfer electrode_info file to {electrode_info_path} on Linux machine.\nThen press 'Y' to continue.\nAnything else to cancel: ")
+        choice = input(f"Transfer {electrode_info_filename} file to {electrode_info_pathname} on Linux machine.\nThen press 'Y' to continue.\nAnything else to cancel: ")
     else:
         print(f'User input to continue automatized by TEST mode')
         print("Continuing ...")

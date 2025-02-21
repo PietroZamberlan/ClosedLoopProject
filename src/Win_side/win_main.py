@@ -40,10 +40,10 @@ def main():
     # ...
     
     # Generate the electrode info and save it to electrode_info_path
-    electrode_info = gen_and_save_electrode_info(testmode=testmode)
+    electrode_info, electrode_info_filename = gen_and_save_electrode_info(testmode=testmode)
 
     # Wait for the electrode info to be transfered to the Linux computer
-    if not ask_to_continue(testmode): return
+    if not ask_to_continue(testmode, electrode_info_filename): return
 
     # Launche the Windows side MEA recording and DMD process for the initial model fit
     init_run_MEA_DMD()
