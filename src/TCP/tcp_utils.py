@@ -36,26 +36,194 @@ class Decoder(json.JSONDecoder):
 
 class ImagePacket:
     def __init__(self):
-        self.current_image = self.CurrentImage()
+        # Used only when the buffer contains the end of an images and the beginning of the next one
+        self.gray_trgs_prev_buffer = 0 
+        self.images        = []
+        self.spike_counts  = np.array([])
 
-        self.image_counter = 0
+        self.add_new_image()
 
-    class CurrentImage:
+
+
+    class LastImage:
         '''
         Current image refers to the pair gray+natural image being shown, 
         for a total of n_gray_trgs_init + n_img_trgs_init triggers.
         '''
-        def __init__(self):
-            self.reset()
+        def __init__(self, parent):
+            self.parent = parent
+            self.reset(parent)
+        def reset(self, parent):
+            self.n_trigs       = 0
+            self.gray_trgs     = parent.gray_trgs_prev_buffer
+            self.nat_trgs      = 0
 
-        def reset(self):
-            self.consecutive_relevant_buffs = 0
-            self.n_trgs_tot_in_pair = 0
-            self.n_trgs_img_tot_in_pair = 0
-            self.detected_triggers_idx_tot = []
-            self.detected_triggers_idx = []
-            self.plot_counter_for_image = 0
+            self.trgs_idx      = np.array([]) # all the triggers indexes for current gray-nat image pair
+            self.pks_idx       = np.array([]) # all the peaks idxs for current gray-nat image pair
+            self.treated_buffs = 0
 
+            self.spike_count   = 0
+
+        def update_trgs_idx(self, bff_trgs_idx):
+            '''
+            Add to the list of indexes of the triggers, the new triggers indexes
+            '''
+            np.append(self.trgs_idx, self.treated_buffs*buffer_size + bff_trgs_idx )
+
+        def get_gray_nat_trgs_in_packet(self, n_trgs_current_buffer):
+            '''
+            Count the triggers corresponding to gray or nat images in the buffer/packet.
+
+            If the curring image trgs count is less than the expected total trggers for the 
+            pair, the number of nat and gray triggers is returned.
+
+            A flag is also returned True if the buffer went above the expected number of
+            triggers for the pair. In this case the gray triggers should not be added to 
+            current image count
+
+            '''
+
+            # max possible gray or natural triggers is n_trgs_current_buffer
+            # min possible gray or natural triggers is 0
+            # if the current buffer is going above one gray+img pair
+            gray_trgs_new_img_flag = False
+            if self.n_trigs > n_gray_trgs_init + n_img_trgs_init:
+                # The buffer contains some natural triggers first,and then gray triggers
+                n_gray_trgs_buffer = self.n_trigs - (n_gray_trgs_init + n_img_trgs_init)
+                n_nat_trgs_buffer  = n_trgs_current_buffer - n_gray_trgs_buffer
+
+                # In this case, only the natural triggers should go and increament the 
+                # current image counts
+                gray_trgs_new_img_flag = True
+
+                assert self.gray_trgs == n_gray_trgs_init, f"Gray triggers count is {self.gray_trgs} and should be {n_gray_trgs_init}"
+
+
+            # if the current buffer not going above one gray+img pair    
+            if self.n_trigs <= n_gray_trgs_init:
+                # All triggers must be gray
+                n_gray_trgs_buffer = n_trgs_current_buffer 
+                n_nat_trgs_buffer  = 0
+
+            else:
+                # The buffer contains some natural triggers too
+                prev_n_trgs_image  = self.n_trigs - n_trgs_current_buffer 
+                if prev_n_trgs_image >= n_gray_trgs_init:
+                    # No triggers where gray
+                    n_gray_trgs_buffer = 0
+                    n_nat_trgs_buffer  = n_trgs_current_buffer
+                else:
+                    n_gray_trgs_buffer = n_gray_trgs_init - prev_n_trgs_image
+                    n_nat_trgs_buffer  = n_trgs_current_buffer - n_gray_trgs_buffer
+            
+            return n_gray_trgs_buffer, n_nat_trgs_buffer, gray_trgs_new_img_flag
+
+        def update_n_gray_nat_trgs(self, n_trgs_current_buffer):
+            '''
+            Update the number of gray and nat triggers in the current buffer
+
+            We also update
+            '''
+            gray_trgs, nat_trgs, new_img_flag = self.get_gray_nat_trgs_in_packet(
+                n_trgs_current_buffer)
+
+            self.nat_trgs  += nat_trgs
+            if not new_img_flag:
+                # Normal case, buffer was below the tot expected number of triggers for the pair
+                self.gray_trgs += gray_trgs
+                self.gray_trgs_prev_buffer = gray_trgs 
+            else:
+                self.gray_trgs_prev_buffer = gray_trgs
+            
+            assert self.nat_trgs == n_img_trgs_init, f"Natural triggers count is {self.nat_trgs} and should be {n_img_trgs_init}"
+            
+            return
+
+        def update_peaks_idx(self, peaks_idx_current_buffer):
+            '''
+            Add to the list of indexes of the peaks, the new peaks indexes
+            '''
+            np.append(self.pks_idx, self.parent.current_image.treated_buffs*buffer_size + peaks_idx_current_buffer )
+
+        def get_spike_count(self):
+            assert self.spike_count <= self.pks_idx.shape[0]
+
+            # gray_trgs_idx = self.trgs_idx[:self.gray_trgs]
+            nat_trgs_idx  = self.trgs_idx[-self.nat_trgs:]
+
+            assert nat_trgs_idx.shape[0] == n_img_trgs_init, f"Natural triggers count is {nat_trgs_idx.shape[0]} and should be {n_img_trgs_init}"
+
+            # Realistic window for the spike count
+            # realistic_window_start_ms  = 30
+            # realistic_window_end_ms    = 350
+            # # How many triggers after the trigger correpsonding to first natural trigger
+            # # the realistic window starts
+            # start_window_idx = 0 
+            # # How long, in triggers, the realistic window lasts
+            # realistic_window_end_idx = 0
+            # condition = ( self.pks_idx > self.nat_trgs.min() + start_window_idx \
+                # & (self.pks_idx < self.nat_trgs.min() + realistic_window_end_idx) )
+            condition = ( self.pks_idx > nat_trgs_idx.min() )
+
+            spikes_in_window = self.pks_idx[condition]
+
+            spike_count = spikes_in_window.shape[0]
+
+            return spike_count
+
+        def set_spike_count(self):
+            '''
+            Gets the spike count for the current image based on the indexes of the 
+            natural image triggers and sets it to the current image object
+            
+            '''            
+            self.spike_count = self.get_spike_count()
+
+            return 
+
+
+            def get_indices_from_seconds(times_seconds,  sampling_rate=20000):
+                """
+                Convert time points in seconds to sample indices.
+                
+                Args:
+                    times_seconds: array-like of time points in seconds
+                    sampling_rate: sampling frequency in Hz (default 20000)
+                    max_idx: maximum index value (length of the data)
+                
+                Returns:
+                    numpy array of integer indices
+                """
+                # Convert to numpy array if not already
+                times = np.asarray(times_seconds)
+                
+                # Convert to indices with proper rounding
+                indices = np.round(times * sampling_rate).astype(np.int64) # sure of the type?
+                    
+                return indices
+
+            realistic_window_start_idx = get_indices_from_seconds(
+                times_seconds=realistic_window_start_ms/1000, 
+                sampling_rate=acq_freq)
+            realistic_window_end_idx   = get_indices_from_seconds(
+                times_seconds=realistic_window_end_ms/1000, 
+                sampling_rate=acq_freq)
+
+    def add_new_image(self):
+        
+        self.last_image = self.LastImage(self)
+        self.images.append(self.last_image)
+        self.image_counter = len(self.images)
+
+
+    def get_spike_counts(self):
+        '''
+        Get the spike counts for all the images in the buffer
+        '''
+        for img in self.images:
+            self.spike_counts = np.append(self.spike_counts, img.spike_count)
+        return self.spike_counts
+    
 
 def count_triggers( trigger_ch_sequence, trigger_diff_threshold):
 
@@ -808,6 +976,9 @@ def remove_trg_if_close_to_end_start( threadict, packet, n_trgs, trgs_idx, borde
     Checks if the flags prev_border_trgs_flag is signaling a triger close to the end of the buffer
     of the previous acquired buffer and a trigger close to the start of the current buffer.
     '''
+    if not prev_border_trgs_flag:
+        # Dictionary is empty, handle the first call case
+        prev_border_trgs_flag = {'trgs_close_to_end': False, 'trgs_close_to_start': False}
 
     if prev_border_trgs_flag['trgs_close_to_end'] and border_trgs_flag['trgs_close_to_start']:
         with threadict['print_lock']:

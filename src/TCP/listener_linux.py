@@ -262,7 +262,8 @@ def listener_linux( current_model ):
             # Select for this buffer the indices of triggers corresponding to the natural image.
             if len(idx_natural_img_start) != 0:
                 ch_bf_peaks_idx  = packet['peaks'][str(ch_id)]             # get the detected spikes in the channel/unit we care about
-                nat_img_idx_condition = (ch_bf_peaks_idx >= idx_natural_img_start.min()) & (ch_bf_peaks_idx <= idx_natural_img_start.max())
+                nat_img_idx_condition = (ch_bf_peaks_idx >= idx_natural_img_start.min()) \
+                    & (ch_bf_peaks_idx <= idx_natural_img_start.max())
                 # Take the peaks corresponding to the idxs of the the natural image in this buffer
                 natural_peaks_buff = ch_bf_peaks_idx[ nat_img_idx_condition ]  
             else:

@@ -143,61 +143,90 @@ def initial_listener_linux( electrode_info ):
             '''
             # 1.
             image_packet = ImagePacket()
-
             # 2.
             launch_threaded_rcv_and_decode( pull_socket_packets, threadict, image_packet )
-
             # 3.
             # This while treats ALL images expected in the vec
             never_received_relevant = True
-            while image_packet.image_counter < n_expected_images:
-                
-                packet = threadict['packet_q'].get()
-                if not is_relevant( packet ):
-                    if never_received_relevant: 
-                        continue
+            prev_border_trgs_flag   = {}
+            while image_packet.image_counter < n_expected_images: 
+                current_img  = image_packet.last_img   
+                # This while treats ONE image ( a pair of gray-nat images )
+                while current_img.n_trigs < n_gray_trgs_init + n_img_trgs_init:
+                    
+                    packet = threadict['packet_q'].get()
+                    if not is_relevant( packet ):
+                        if never_received_relevant: 
+                            continue
+                        else:
+                            print('End of vec file')
+                            return image_packet
                     else:
-                        break # end of vec file
-                else:
-                    never_received_relevant = False
+                        never_received_relevant = False
+                        # image_packet.current_image.treated_buffs = 0
 
-                    # This while treats ONE image ( a pair of gray-nat images )
-                    while image_packet.current_img.n_trigs < n_gray_trgs_init + n_img_trgs_init:
-                        
-                        # Count trigs in packet and get flags for trgs close to end/start
-                        n_trgs, trgs_idx, border_trgs_flag = count_triggers_init( 
-                            trigger_ch_sequence    = packet['trg_raw_data'].astype(np.int32),
-                            trigger_diff_threshold = trg_diff_threshold )
-                        # Except if no triggers in relevant packet
-                        if n_trgs == 0: 
-                            threadict['global_stop_event'].set()
-                            threadict['exceptions_q'].put( 
-                                CustomException('No triggers in relevant packet, some MEA params must be wrong') )
-                            return
+                    # BUG
+                    # we are updating pks and trgs lists assuming we always start from 0.
+                    # not considering the prev_img_gray_trgs_flag
 
-                        # Remove a trigger if one was detected close to end and start
-                        n_trgs, trgs_idx, prev_border_trgs_flag = remove_trg_if_close_to_end_start( 
-                            threadict, packet, n_trgs, trgs_idx, border_trgs_flag, prev_border_trgs_flag )
+                    # Variables here are referred to the current buffer if not specified otherwise
+                    # ie. n_trgs, trgs_idx, border_trgs_flag refer to the current buffer
 
-                        
-                        idx_nat_trgs, n_trgs_img = get_nat_triggers( trgs_idx, n_trgs, n_img_trgs_init )
-                        nat_pks_idx = get_nat_pks_idx( pks_idx, idx_nat_trgs )
+                    # Count trigs in packet and get flags for trgs close to end/start
+                    n_trgs, trgs_idx, border_trgs_flag = count_triggers_init( 
+                        trigger_ch_sequence    = packet['trg_raw_data'].astype(np.int32),
+                        trigger_diff_threshold = trg_diff_threshold )
+                    # Except if no triggers in relevant packet
+                    if n_trgs == 0: 
+                        threadict['global_stop_event'].set()
+                        threadict['exceptions_q'].put( 
+                            CustomException('No triggers in relevant packet, some MEA param must be wrong') )
+                        return
 
-                        image_packet.current_img.spike_count += nat_pks_idx.size
-                        image_packet.current_img.n_trigs += n_trgs_img
-                        image_packet.n_trigs_tot_in_pair += n_trgs
+                    # Remove a trigger if one was detected close to end and start
+                    n_trgs, trgs_idx, prev_border_trgs_flag = remove_trg_if_close_to_end_start( 
+                        threadict, packet, n_trgs, trgs_idx, border_trgs_flag, prev_border_trgs_flag )
 
-                        if flag == 'end':
-                            break
-            
-            return
+                    # Update current image trg count triggers indexes
+                    current_img.n_trigs += n_trgs
+                    current_img.update_trgs_idx( trgs_idx_current_buffer=trgs_idx )
+                    current_img.update_peaks_idx( peaks_idx_current_buffer=packet['pks_idx'] )
+                    current_img.update_n_gray_nat_trgs(n_trgs_current_buffer=n_trgs)
 
-        receive_responses_count_spikes( 
+                    # If image is still in gray, continue
+                    if current_img.gray_trgs < n_gray_trgs_init:
+                        current_img.treated_buffs += 1
+                        continue
+
+                    assert current_img.gray_trgs == n_gray_trgs_init
+
+                    # If not enough natural triggers yet, continue
+                    if current_img.nat_trgs < n_img_trgs_init:
+                        current_img.treated_buffs += 1
+                        continue
+
+                    assert current_img.nat_trgs == n_img_trgs_init
+
+                    # Count and set the spikes corresponding to the natural image 
+                    current_img.set_spike_count()
+
+                    current_img.treated_buffs += 1
+
+                    assert current_img.n_trigs == n_gray_trgs_init + n_img_trgs_init
+
+                image_packet.spike_counts.append( current_img.spike_count )
+                image_packet.add_new_image()
+
+            assert image_packet.image_counter == n_expected_images
+
+            return image_packet.spike_counts
+
+        spike_counts = receive_responses_count_spikes( 
             n_expected_images=start_model['fit_parameters']['in_use_idx'].shape[0] )
 
+        assert len(spike_counts) == start_model['fit_parameters']['in_use_idx'].shape[0]
 
-
-        time.sleep(5) # simulate reception of responses
+        # time.sleep(5) # simulate reception of responses
 
         # Send the DMD off command and wait for confirmation 
         DMD_off_sender_thread = launch_dmd_off_sender( req_socket_dmd, threadict)
