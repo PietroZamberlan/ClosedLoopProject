@@ -4,7 +4,7 @@ src/DMD/saved/*
 jupyter_tests.ipynb
 data/*
 src/TCP/figures/*
-src/BINVEC/*
+src/binarization_simone/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
