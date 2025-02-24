@@ -18,13 +18,15 @@ pick best image   -> main_utils.py
 '''
 ############### ELECTRODE INFO FUNCTIONS ####################
 def upload_electrode_info(electrode_info_pathname, print_info = True, testmode = False):
-
     '''
     Uploads the electrode_info_file from the given path set in the config file.
     '''
     if testmode:
         print(f'upload_electrode_data in TEST mode, values generated from config.py')
-        electrode_info = gen_and_save_electrode_info(testmode)
+        electrode_info, electrode_info_pathname = gen_and_save_electrode_info(
+            testmode,
+            path=electrode_info_pathname, 
+            filename=electrode_info_filename)
 
     else:
         with open(electrode_info_pathname, 'r') as f:

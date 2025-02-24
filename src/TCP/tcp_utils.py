@@ -222,7 +222,6 @@ class ImagePacket:
             self.spike_counts = np.append(self.spike_counts, img.spike_count)
         return self.spike_counts
     
-
 def count_triggers( trigger_ch_sequence, trigger_diff_threshold):
 
     '''Counts the triggers in the provided array, tipically an aquired buffer.
@@ -350,85 +349,107 @@ def receive_responses_count_spikes( pull_socket_packets, threadict, n_expected_i
                         - continue
                                 
     '''
-    # 1.
-    image_packet = ImagePacket()
-    # 2.
-    launch_threaded_rcv_and_decode( pull_socket_packets, threadict, image_packet )
-    # 3.
-    # This while treats ALL images expected in the vec
-    never_received_relevant = True
-    prev_border_trgs_flag   = {}
-    while image_packet.image_counter < n_expected_images: 
-        current_img  = image_packet.last_img   
-        # This while treats ONE image ( a pair of gray-nat images )
-        while current_img.n_trigs < n_gray_trgs_init + n_img_trgs_init:
+    
+    try:
+        # 1.
+        image_packet = ImagePacket()
+        # 2.
+        rcv_thread = launch_threaded_rcv_and_decode( pull_socket_packets, threadict, image_packet )
+        # 3.
+        # This while treats ALL images expected in the vec
+        never_received_relevant = True
+        prev_border_trgs_flag   = {}
+        while image_packet.image_counter < n_expected_images and \
+            not threadict['global_stop_event'].is_set(): 
             
-            packet = threadict['packet_q'].get()
-            if not is_relevant( packet ):
-                if never_received_relevant: 
-                    continue
+            current_img  = image_packet.last_image   
+            # This while treats ONE image ( a pair of gray-nat images )
+            while current_img.n_trigs < n_gray_trgs_init + n_img_trgs_init \
+                and not threadict['global_stop_event'].is_set():
+                
+                packet = threadict['packets_q'].get(block=False)
+                
+                if not is_relevant( packet ):
+                    if never_received_relevant: 
+                        continue
+                    else:
+                        print('End of vec file')
+                        return image_packet
                 else:
-                    print('End of vec file')
-                    return image_packet
-            else:
-                never_received_relevant = False
-                # image_packet.current_image.treated_buffs = 0
+                    never_received_relevant = False
+                    # image_packet.current_image.treated_buffs = 0
 
-            # BUG
-            # we are updating pks and trgs lists assuming we always start from 0.
-            # not considering the prev_img_gray_trgs_flag
+                # BUG
+                # we are updating pks and trgs lists assuming we always start from 0.
+                # not considering the prev_img_gray_trgs_flag
 
-            # Variables here are referred to the current buffer if not specified otherwise
-            # ie. n_trgs, trgs_idx, border_trgs_flag refer to the current buffer
+                # Variables here are referred to the current buffer if not specified otherwise
+                # ie. n_trgs, trgs_idx, border_trgs_flag refer to the current buffer
 
-            # Count trigs in packet and get flags for trgs close to end/start
-            n_trgs, trgs_idx, border_trgs_flag = count_triggers_init( 
-                trigger_ch_sequence    = packet['trg_raw_data'].astype(np.int32),
-                trigger_diff_threshold = trg_diff_threshold )
-            # Except if no triggers in relevant packet
-            if n_trgs == 0: 
-                threadict['global_stop_event'].set()
-                threadict['exceptions_q'].put( 
-                    CustomException('No triggers in relevant packet, some MEA param must be wrong') )
-                return
+                # Count trigs in packet and get flags for trgs close to end/start
+                n_trgs, trgs_idx, border_trgs_flag = count_triggers_init( 
+                    trigger_ch_sequence    = packet['trg_raw_data'].astype(np.int32),
+                    trigger_diff_threshold = trg_diff_threshold )
+                # Except if no triggers in relevant packet
+                if n_trgs == 0: 
+                    threadict['global_stop_event'].set()
+                    threadict['exceptions_q'].put( 
+                        CustomException('No triggers in relevant packet, some MEA param must be wrong') )
+                    return
 
-            # Remove a trigger if one was detected close to end and start
-            n_trgs, trgs_idx, prev_border_trgs_flag = remove_trg_if_close_to_end_start( 
-                threadict, packet, n_trgs, trgs_idx, border_trgs_flag, prev_border_trgs_flag )
+                # Remove a trigger if one was detected close to end and start
+                n_trgs, trgs_idx, prev_border_trgs_flag = remove_trg_if_close_to_end_start( 
+                    threadict, packet, n_trgs, trgs_idx, border_trgs_flag, prev_border_trgs_flag )
 
-            # Update current image trg count triggers indexes
-            current_img.n_trigs += n_trgs
-            current_img.update_trgs_idx( trgs_idx_current_buffer=trgs_idx )
-            current_img.update_peaks_idx( peaks_idx_current_buffer=packet['pks_idx'] )
-            current_img.update_n_gray_nat_trgs(n_trgs_current_buffer=n_trgs)
+                # Update current image trg count triggers indexes
+                current_img.n_trigs += n_trgs
+                current_img.update_trgs_idx( trgs_idx_current_buffer=trgs_idx )
+                current_img.update_peaks_idx( peaks_idx_current_buffer=packet['pks_idx'] )
+                current_img.update_n_gray_nat_trgs(n_trgs_current_buffer=n_trgs)
 
-            # If image is still in gray, continue
-            if current_img.gray_trgs < n_gray_trgs_init:
+                # If image is still in gray, continue
+                if current_img.gray_trgs < n_gray_trgs_init:
+                    current_img.treated_buffs += 1
+                    continue
+
+                assert current_img.gray_trgs == n_gray_trgs_init
+
+                # If not enough natural triggers yet, continue
+                if current_img.nat_trgs < n_img_trgs_init:
+                    current_img.treated_buffs += 1
+                    continue
+
+                assert current_img.nat_trgs == n_img_trgs_init
+
+                # Count and set the spikes corresponding to the natural image 
+                current_img.set_spike_count()
+
                 current_img.treated_buffs += 1
-                continue
 
-            assert current_img.gray_trgs == n_gray_trgs_init
+                assert current_img.n_trigs == n_gray_trgs_init + n_img_trgs_init
+            
+            if threadict['global_stop_event'].is_set(): 
+                raise CustomException('Global stop event detected')
 
-            # If not enough natural triggers yet, continue
-            if current_img.nat_trgs < n_img_trgs_init:
-                current_img.treated_buffs += 1
-                continue
+            image_packet.spike_counts.append( current_img.spike_count )
+            image_packet.add_new_image()
 
-            assert current_img.nat_trgs == n_img_trgs_init
+        if threadict['global_stop_event'].is_set(): 
+            raise CustomException('Global stop event detected')
+        
+        assert image_packet.image_counter == n_expected_images
 
-            # Count and set the spikes corresponding to the natural image 
-            current_img.set_spike_count()
+        return image_packet.spike_counts
 
-            current_img.treated_buffs += 1
+    except queue.Empty as e:
+        print(f'ERROR: Packet queue is empty')
+        threadict['global_stop_event'].set() 
+        raise e
 
-            assert current_img.n_trigs == n_gray_trgs_init + n_img_trgs_init
-
-        image_packet.spike_counts.append( current_img.spike_count )
-        image_packet.add_new_image()
-
-    assert image_packet.image_counter == n_expected_images
-
-    return image_packet.spike_counts
+    except Exception as e:
+        print(f"ERROR: in packet receiving function - {repr(e)}")
+        threadict['global_stop_event'].set()
+        return
 
 def threaded_fit_end_queue_img(new_spike_count, current_img_id, current_model, threadict, ):
     '''
@@ -513,7 +534,7 @@ def threaded_vec_send_and_confirm( threadict, req_socket_vec, generate_vec, **kw
                         print(f"\n...VEC Thread: Client confirmed VEC reception", end="\n")
                     return
                 else:
-                    print(f"\n...VEC Thread: Error: The client replied with an unexpected message: {confirmation}", end="\n")
+                    print(f"\n...VEC Thread: ERROR: The client replied with an unexpected message: {confirmation}", end="\n")
                     # threadict['vec_failure_event'].set() 
                     return           
         if threadict['global_stop_event'].is_set():
@@ -521,7 +542,7 @@ def threaded_vec_send_and_confirm( threadict, req_socket_vec, generate_vec, **kw
             return
         else:
             with threadict['print_lock']: 
-                print(f"\n...VEC Thread: Error: Timeout expired without VEC reception confirmation - setting Global stop", 
+                print(f"\n...VEC Thread: ERROR: Timeout expired without VEC reception confirmation - setting Global stop", 
                     end="\n")
             # threadict['vec_failure_event'].set() 
             threadict['global_stop_event'].set()
@@ -529,7 +550,7 @@ def threaded_vec_send_and_confirm( threadict, req_socket_vec, generate_vec, **kw
             return
     except Exception as e:
         with threadict['print_lock']:
-            print(f"\n...VEC Thread: Unexpected Error: {e}", end="\n")
+            print(f"\n...VEC Thread: Unexpected ERROR: {e}", end="\n")
         threadict['global_stop_event'].set()
         threadict['exceptions_q'].put(e)
         return
@@ -593,7 +614,7 @@ def wait_for_vec_confirmation(pull_socket_packets, threadict):
     elif threadict['global_stop_event'].is_set():
         raise CustomException("Global stop event set")
     else:
-        raise CustomException("vec_failure_event error - vec_confirmation_event not set and global_stop_event not set")            
+        raise CustomException("vec_failure_event ERROR - vec_confirmation_event not set and global_stop_event not set")            
 
 def generate_send_wait_vec( start_model, threadict, req_socket_vec, n_gray_trgs, n_img_trgs, n_end_gray_trgs ):
     '''
@@ -659,7 +680,7 @@ def threaded_sender_dmd_off_signal(req_socket_dmd, threadict):
                 return
             else: 
                 with threadict['print_lock']: 
-                    print(f"\n...DMD off Thread: Error, client replied to DMD request with unexpected message: {confirmation}", end="\n")        
+                    print(f"\n...DMD off Thread: ERROR, client replied to DMD request with unexpected message: {confirmation}", end="\n")        
                 threadict['exceptions_q'].put(CustomException("Client replied to DMD request with unexpected message"))
                 return
             
@@ -737,7 +758,7 @@ def wait_for_computation_and_discard(pull_socket_packets, threadict, poll_interv
     elif threadict['global_stop_event'].is_set():
         raise CustomException("Global stop event set")
     else:
-        raise CustomException("Unknown error - fit_finished_event not set and global_stop_event not set")
+        raise CustomException("Unknown ERROR - fit_finished_event not set and global_stop_event not set")
 
 def update_plot(packet, ch_id, ax, fig, lines, count_relevant_buffs, plot_counter_for_image, max_lines=10):
     """
@@ -1045,8 +1066,9 @@ def threaded_rcv_and_decode_packet(
     '''
     try:
 
-        logger = threadict['rvc_thread_log']
-
+        loginfo = threadict['rvc_thread_log'].info
+        prev_no_packet_flag = True
+        
         start_times = threadict['start_times']
         poller_main = zmq.Poller()
         poller_main.register(pull_socket_packets, zmq.POLLIN)
@@ -1057,17 +1079,17 @@ def threaded_rcv_and_decode_packet(
                 elapsed_time = time.time() - start_times['last_received_packet']
                 print('' if prev_no_packet_flag else '\n', end="")            
                 print(f"Server has not received packets in the last {(elapsed_time):.3f} seconds...",end="\r")
-                logger('' if prev_no_packet_flag else '\n', end="")            
-                logger(f"Server has not received packets in the last {(elapsed_time):.3f} seconds...",end="\r")
+                # loginfo('' if prev_no_packet_flag else '\n')            
+                loginfo(f"Server has not received packets in the last {(elapsed_time):.3f} seconds...\r")
 
                 prev_no_packet_flag = True
                 if elapsed_time > main_timeout_rcv_packet and image_packet.n_rcvd_imgs > 0:
                     # timeout expired and while receiving images ( not sure its correct to stop here)
                     # print('\n')
-                    logger('\n')
+                    # loginfo('\n')
                     threadict['global_stop_event'].set()
                     print(f"\n...RCV Thread: Stopped from outside")
-                    logger(f"\n...RCV Thread: Stopped from outside")
+                    # loginfo(f"\n...RCV Thread: Stopped from outside")
                 return
 
             else:
@@ -1078,7 +1100,7 @@ def threaded_rcv_and_decode_packet(
                 start_times['last_received_packet'] = time.time()
                 # print('\n' if prev_no_packet_flag else '', end="")
                 # print('\n', end="")
-                logger('\n', end="")
+                # loginfo('')
                 prev_no_packet_flag = False
                 threadict['packets_q'].put(packet)
 
@@ -1086,8 +1108,8 @@ def threaded_rcv_and_decode_packet(
         threadict['global_stop_event'].set()
         threadict['exceptions_q'].put(e)
         with threadict['print_lock']:
-            print(f"\n...RCV Thread: Unexpected Error: {e}", end="\n")
-            logger(f"\n...RCV Thread: Unexpected Error: {e}", end="\n")
+            print(f"\n...RCV Thread: Unexpected ERROR: {e}", end="\n")
+            # loginfo(f"\n...RCV Thread: Unexpected ERROR: {e}")
         return
 
 def launch_threaded_rcv_and_decode( pull_socket_packets, threadict, image_packet):
@@ -1174,13 +1196,19 @@ def setup_loggers():
     file_handler = logging.FileHandler(receiver_thread_log_pathname)
     file_handler.setLevel(logging.INFO)
 
+    # Create a console handler for the logger
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+
     # Create a formatter and set it for the handler
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
 
     # Add the handler to the logger
     thread_logger.addHandler(file_handler)
-
+    # thread_logger.addHandler(console_handler)
+    
     return thread_logger
 
 

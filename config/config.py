@@ -22,6 +22,7 @@ testmode = True
 session_name = 'session_1'   
 
 WINDOWS_OLD_MACHINE_IP   = '172.17.19.233'
+WINDOWS_NEW_MACHINE_IP   = '172.17.19.166'
 LINUX_IP                 = "172.17.12.200"
 PULL_SOCKET_PACKETS_PORT = '5555'
 REQ_SOCKET_VEC_PORT      = '5557'
@@ -43,7 +44,8 @@ train_img_dataset_name = 'nat_img_train_dataset_PNAS_uint8.npy'
 test_img_dataset_name  = 'nat_img_test_dataset_PNAS_uint8.npy'
 
 electrode_info_path     = experiment_data_path / 'electrode_info'
-electrode_info_pathname = experiment_data_path / 'electrode_info' / 'electrode_info.json'
+electrode_info_filename = 'electrode_info.json'
+electrode_info_pathname = experiment_data_path / 'electrode_info' / electrode_info_filename
 electrode_raw_data_path = experiment_data_path / 'electrode_test_data' 
 
 bin_path               = experiment_data_path / 'bin_file'

@@ -49,13 +49,13 @@ def initial_listener_linux( electrode_info ):
             electrode_info, *nat_img_tuple )# dict of tensors
 
         # Plot the chosen RF on the checkerboard STA 
-        GP_utils.plot_hyperparams_on_STA(
-            start_model, STA=None, ax=None )
+        # GP_utils.plot_hyperparams_on_STA(
+            # start_model, STA=None, ax=None )
         
         # Send the VEC file and wait for confirmed reception
-        generate_send_wait_vec( 
-            start_model, threadict, req_socket_vec, 
-            n_gray_trgs_init, n_img_trgs_init, n_end_gray_trgs )
+        # generate_send_wait_vec( 
+        #     start_model, threadict, req_socket_vec, 
+        #     n_gray_trgs_init, n_img_trgs_init, n_end_gray_trgs )
 
         # Receive response packets in different thread, and count triggers
         spike_counts = receive_responses_count_spikes(
@@ -77,9 +77,9 @@ def initial_listener_linux( electrode_info ):
             if threadict['global_stop_event'].wait(timeout=0.1):       break
             if threadict['DMD_stopped_event'].set().wait(timeout=0.1): break
             pass
-
+mea2-vision
     except KeyboardInterrupt:
-        print('Key Interrups')
+        print('Key Interrupt')
         threadict['global_stop_event'].set()
 
     finally:
@@ -107,7 +107,10 @@ def initial_listener_linux( electrode_info ):
 
         print('Checking for exceptions in queue...')
         if not threadict['exceptions_q'].empty():
+            print('Exceptions in queue:')
             raise threadict['exceptions_q'].get()
+        else:
+            print('No exceptions in queue. If there are any, they have been raised by main thread.')
     return
 
 
