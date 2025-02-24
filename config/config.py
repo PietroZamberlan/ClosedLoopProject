@@ -14,8 +14,8 @@ current_dir = Path(__file__).resolve().parent
 REPO_DIR = current_dir.parent
 GP_REPO_DIR = REPO_DIR / 'gaussian_processes' / 'Spatial_GP_repo'
 
-# testmode = True
-testmode = False
+testmode = True
+# testmode = False
 
 # Name of a try for the whole experiment. 
 # Its defined by the variables in this file

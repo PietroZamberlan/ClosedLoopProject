@@ -69,20 +69,20 @@ def gen_and_save_electrode_info(testmode):
         print('Saving electrode info to file.')
         # check if file exists and save the electrode info
         # if it exists add a numbe rto the file name
-        electrode_info_filename = 'electrode_info.json'
-        electrode_info_file_path = REPO_DIR / 'data' / 'electrode_info' / electrode_info_filename
+        electrode_info_filename  = 'electrode_info.json'
+        electrode_info_file_path = REPO_DIR / 'data' / 'electrode_info' 
+        electrode_info_pathname  = electrode_info_file_path / electrode_info_filename
 
-
-        if os.path.exists(electrode_info_file_path):
-            print(f'File {electrode_info_filename} already exists. Saving as a new file.')
-            count_files = len([name for name in os.listdir(os.path.join(REPO_DIR, 'data')) if name.startswith('electrode_info') and name.endswith('.json')])
+        if os.path.exists(electrode_info_pathname):
+            print(f'File {electrode_info_filename} already exists in {electrode_info_file_path}.\nSaving as a new file.')
+            count_files = len([name for name in os.listdir(electrode_info_file_path) if name.startswith('electrode_info') and name.endswith('.json')])
             electrode_info_filename = f'electrode_info_{count_files+1}.json'
-            electrode_info_file_path = REPO_DIR / 'data' / electrode_info_filename
+            electrode_info_pathname  = electrode_info_file_path / electrode_info_filename
 
-        with open(electrode_info_file_path, 'w') as f:
+        with open(electrode_info_pathname, 'w') as f:
             json.dump(electrode_info, f)
         
-    return electrode_info
+    return electrode_info, electrode_info_filename
 
 if __name__ == '__main__':
 
