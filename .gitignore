@@ -5,7 +5,7 @@ jupyter_tests.ipynb
 data/*
 src/TCP/figures/*
 src/binarization_simone/*
-
+/home/idv-eqs8-pza/IDV_code/ClosedLoopProject/src
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
