@@ -2,3 +2,6 @@
 	path = gaussian_processes
 	url = git@github.com:retinal-information-processing-lab/gaussian_processes.git
 	branch = pietro/workingbranch
+[submodule "src/Win_side/McsUsbNet_Examples"]
+	path = src/Win_side/McsUsbNet_Examples
+	url = git@github.com:multichannelsystems/McsUsbNet_Examples.git
