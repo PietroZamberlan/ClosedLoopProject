@@ -56,10 +56,15 @@ vec_pathname_dmd_source_active = r"C:\Users\user\Repositories\cppalp\data\binvec
 # Windows main parameters 
 Win_side_path = REPO_DIR / 'src' / 'Win_side'
 
+# Log files
+# Windows
 ort_reader_output_pathname       = Win_side_path / "output_ort_reader.log"
 dmd_output_pathname              = Win_side_path / "output_DMD.log"
 ort_reader_start_output_pathname = Win_side_path / "output_ort_reader_start.log"
 dmd_start_output_pathname        = Win_side_path / "output_DMD_start.log" 
+# Linux
+receiver_thread_log_pathname     = REPO_DIR / 'log' / "packet_receiver_thread.log"
+
 
 # endregion
 

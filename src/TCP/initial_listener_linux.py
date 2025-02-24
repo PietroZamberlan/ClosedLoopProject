@@ -36,7 +36,7 @@ def initial_listener_linux( electrode_info ):
     context, pull_socket_packets, req_socket_vec, req_socket_dmd = setup_lin_side_sockets()
     print("Init linux server is running ...")
 
-    # Set up the thread variables
+    # Set up the thread variables and loggers
     threadict = setup_thread_vars_linux() # Dictionary containing the threads and events
 
     try:
@@ -54,174 +54,12 @@ def initial_listener_linux( electrode_info ):
         
         # Send the VEC file and wait for confirmed reception
         generate_send_wait_vec( 
-            start_model, threadict, req_socket_vec, n_gray_trgs_init, n_img_trgs_init, n_end_gray_trgs )
+            start_model, threadict, req_socket_vec, 
+            n_gray_trgs_init, n_img_trgs_init, n_end_gray_trgs )
 
-        # Receive response packets and count triggers
-
-        def receive_responses_count_spikes( n_expected_images):
-            '''
-            Receive the packets from the Windows machine and count the triggers corresponding to each image.
-
-            This function should be called in correspondence to only one VEC file being sent.
-                (be it the initial vec or the phase 2 vec where only 2 images are shown)
-
-            We call natural trigers the ones corresponding to natural images being shown.
-            Grey triggers the others.
-
-            1.
-            Define an ImgPacket, 
-                object that defines the sequence of images-packets correspondence:
-                - expected number of images ( same as the vec )
-                - expected number of relevant packets 
-                - image_counter - number of images as detected by counting natural triggers
-
-                - attributes relative to the current image
-                - attributes relative to the current packet
-                - attributes relative to the current packet/buffer ...?
-                    'consecutive_relevant_buffs' : consecutive_relevant_buffs,
-                    'n_trgs_tot_in_pair'         : n_trgs_tot_in_pair,
-                    'n_trgs_img_tot_in_pair'     : n_trgs_img_tot_in_pair,
-                    'detected_triggers_idx_tot'  : detected_triggers_idx_tot,
-                    'detected_triggers_idx'      : detected_triggers_idx,
-                    'plot_counter_for_image'     : plot_counter_for_image,
-
-            2.
-            Receive packets in a thread and add them to the packet queue
-                - Launch threaded rcv and decode packet function _init version
-                    - Poll every rvc_packet_poll_timeout seconds
-                    - Break if the global stop event is set
-                    - Add every received packet to queue
-                                                            
-            3.
-            Read along the packet queue in main thread:
-
-                ALL IMAGES IN VEC:
-                while image_counter < expected number of images:
-            
-                    if not is_relevant(packet):
-                        if never_received_relevant:
-                            - continue
-                        else:
-                            - break ( end of vec file )
-
-                    else:
-                        ONE IMAGE
-                        Here we count trgs and spikes for one image ( n_gray_trgs + n_img_trgs )
-
-                        We use the indexes of the triggers corresponding to gray/nat image being presented
-                        to select the spikes saved in the array of spikes indexes for one image. (pks_idx)
-
-                        while ImgPacket.current_img.n_trigs==n_trigs_current_img < n_gray_trgs_init + n_img_trgs_init:
-                        
-                            all variables refer to _current_buffer
-                            - count triggers and get
-                                n_trgs, idx_trgs, flag for trgs close to end/start
-                                - break if no trgs
-
-                            - get only the indexes corresponding to natural images idx_nat_trgs    
-                                to be used to select the spikes indexes for the image
-                                - n_trgs_img = number of triggers in buffer corresponding to natural image
-                                - idx_nat_trgs = idx_trgs[ -n_trgs_img: ]
-
-                            - select the indexes corresponding to peaks of natural images                        
-                                nat_img_pks_condition = (pks_idx >= idx_nat_trgs.min()) \
-                                                        &  (pks_idx <= idx_nat_trgs.max())
-                                nat_pks_idx = pks_idx[nat_img_pks_condition]
-
-                            - add current buffer spike count (nat_pks_idx) to ImgPacket.current_img
-                                ImgPacket.current_img.spike_count += nat_pks_idx.size
-                            - add current trgs count to ImgPacket.current_img
-                                ImgPacket.current_img.n_trigs += n_trgs_img
-
-                            - add triggers to total count of ImgPacket (n_trgs_tot_in_pair += n_trgs_buffer) 
-                                ImgPacket.n_trigs += n_trgs
-
-                            - if image still in gray:
-                                - ImgPacket.current_img.n_trigs += n_trgs_img
-                                - continue
-                                        
-            '''
-            # 1.
-            image_packet = ImagePacket()
-            # 2.
-            launch_threaded_rcv_and_decode( pull_socket_packets, threadict, image_packet )
-            # 3.
-            # This while treats ALL images expected in the vec
-            never_received_relevant = True
-            prev_border_trgs_flag   = {}
-            while image_packet.image_counter < n_expected_images: 
-                current_img  = image_packet.last_img   
-                # This while treats ONE image ( a pair of gray-nat images )
-                while current_img.n_trigs < n_gray_trgs_init + n_img_trgs_init:
-                    
-                    packet = threadict['packet_q'].get()
-                    if not is_relevant( packet ):
-                        if never_received_relevant: 
-                            continue
-                        else:
-                            print('End of vec file')
-                            return image_packet
-                    else:
-                        never_received_relevant = False
-                        # image_packet.current_image.treated_buffs = 0
-
-                    # BUG
-                    # we are updating pks and trgs lists assuming we always start from 0.
-                    # not considering the prev_img_gray_trgs_flag
-
-                    # Variables here are referred to the current buffer if not specified otherwise
-                    # ie. n_trgs, trgs_idx, border_trgs_flag refer to the current buffer
-
-                    # Count trigs in packet and get flags for trgs close to end/start
-                    n_trgs, trgs_idx, border_trgs_flag = count_triggers_init( 
-                        trigger_ch_sequence    = packet['trg_raw_data'].astype(np.int32),
-                        trigger_diff_threshold = trg_diff_threshold )
-                    # Except if no triggers in relevant packet
-                    if n_trgs == 0: 
-                        threadict['global_stop_event'].set()
-                        threadict['exceptions_q'].put( 
-                            CustomException('No triggers in relevant packet, some MEA param must be wrong') )
-                        return
-
-                    # Remove a trigger if one was detected close to end and start
-                    n_trgs, trgs_idx, prev_border_trgs_flag = remove_trg_if_close_to_end_start( 
-                        threadict, packet, n_trgs, trgs_idx, border_trgs_flag, prev_border_trgs_flag )
-
-                    # Update current image trg count triggers indexes
-                    current_img.n_trigs += n_trgs
-                    current_img.update_trgs_idx( trgs_idx_current_buffer=trgs_idx )
-                    current_img.update_peaks_idx( peaks_idx_current_buffer=packet['pks_idx'] )
-                    current_img.update_n_gray_nat_trgs(n_trgs_current_buffer=n_trgs)
-
-                    # If image is still in gray, continue
-                    if current_img.gray_trgs < n_gray_trgs_init:
-                        current_img.treated_buffs += 1
-                        continue
-
-                    assert current_img.gray_trgs == n_gray_trgs_init
-
-                    # If not enough natural triggers yet, continue
-                    if current_img.nat_trgs < n_img_trgs_init:
-                        current_img.treated_buffs += 1
-                        continue
-
-                    assert current_img.nat_trgs == n_img_trgs_init
-
-                    # Count and set the spikes corresponding to the natural image 
-                    current_img.set_spike_count()
-
-                    current_img.treated_buffs += 1
-
-                    assert current_img.n_trigs == n_gray_trgs_init + n_img_trgs_init
-
-                image_packet.spike_counts.append( current_img.spike_count )
-                image_packet.add_new_image()
-
-            assert image_packet.image_counter == n_expected_images
-
-            return image_packet.spike_counts
-
-        spike_counts = receive_responses_count_spikes( 
+        # Receive response packets in different thread, and count triggers
+        spike_counts = receive_responses_count_spikes(
+            pull_socket_packets, threadict, 
             n_expected_images=start_model['fit_parameters']['in_use_idx'].shape[0] )
 
         assert len(spike_counts) == start_model['fit_parameters']['in_use_idx'].shape[0]
@@ -278,6 +116,6 @@ if __name__ == "__main__":
     print(" Starting listener_linux.py as main...")
 
     electrode_info = main_utils.upload_electrode_info( 
-        electrode_info_path, print_info=True, testmode = testmode )
+        electrode_info_pathname, print_info=True, testmode = testmode )
     
     initial_listener_linux( electrode_info )

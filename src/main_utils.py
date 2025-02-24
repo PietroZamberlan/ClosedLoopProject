@@ -17,7 +17,7 @@ counting triggers -> tcp_utils.py
 pick best image   -> main_utils.py
 '''
 ############### ELECTRODE INFO FUNCTIONS ####################
-def upload_electrode_info(electrode_info_path, print_info = True, testmode = False):
+def upload_electrode_info(electrode_info_pathname, print_info = True, testmode = False):
 
     '''
     Uploads the electrode_info_file from the given path set in the config file.
@@ -27,14 +27,15 @@ def upload_electrode_info(electrode_info_path, print_info = True, testmode = Fal
         electrode_info = gen_and_save_electrode_info(testmode)
 
     else:
-        with open(electrode_info_path, 'r') as f:
+        with open(electrode_info_pathname, 'r') as f:
             electrode_info = json.load(f)
 
         for key, value in electrode_info.items():
-            if type(value) == float:
-                print(f'   {key}: {value:.2f}')
-            else:
-                print(f'   {key}: {value:.0f}')
+            if print_info:
+                if type(value) == float:
+                    print(f'   {key}: {value:.2f}')
+                else:
+                    print(f'   {key}: {value:.0f}')
 
     return electrode_info
 
