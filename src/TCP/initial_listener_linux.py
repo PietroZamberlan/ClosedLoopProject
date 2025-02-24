@@ -77,7 +77,7 @@ def initial_listener_linux( electrode_info ):
             if threadict['global_stop_event'].wait(timeout=0.1):       break
             if threadict['DMD_stopped_event'].set().wait(timeout=0.1): break
             pass
-mea2-vision
+
     except KeyboardInterrupt:
         print('Key Interrupt')
         threadict['global_stop_event'].set()
