@@ -2,6 +2,9 @@
 src/TCP/saved/*
 src/DMD/saved/*
 jupyter_tests.ipynb
+data/*
+src/TCP/figures/*
+src/BINVEC/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
