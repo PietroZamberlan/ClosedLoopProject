@@ -966,11 +966,11 @@ def setup_lin_side_sockets():
 
     # Create a REQ socket as a client
     req_socket_vec = context.socket(zmq.REQ)
-    req_socket_vec.connect(f"tcp://{WINDOWS_OLD_MACHINE_IP}:{REQ_SOCKET_VEC_PORT}")
+    req_socket_vec.connect(f"tcp://{WINDOWS_NEW_MACHINE_IP}:{REQ_SOCKET_VEC_PORT}")
 
     # Create a REQ socket as a client
     req_socket_dmd = context.socket(zmq.REQ)
-    req_socket_dmd.connect(f"tcp://{WINDOWS_OLD_MACHINE_IP}:{REQ_SOCKET_DMD_PORT}")
+    req_socket_dmd.connect(f"tcp://{WINDOWS_NEW_MACHINE_IP}:{REQ_SOCKET_DMD_PORT}")
 
     return context, pull_socket_packets, req_socket_vec, req_socket_dmd
 

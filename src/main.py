@@ -40,7 +40,7 @@ def main():
     # Upload electrode information file
     print("MAIN - Uploading electrode information file")
     electrode_info = main_utils.upload_electrode_info( 
-        electrode_info_path, print_info=True, testmode=False )
+        electrode_info_pathname, print_info=True, testmode=False )
 
     # Initial listener_linux.py process
     print("MAIN - Launching initial listener ")
