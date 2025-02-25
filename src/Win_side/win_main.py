@@ -1,4 +1,4 @@
-from config.config import *
+from config.config import * #testmode, electrode_info_filename, electrode_info_path
 from src.Win_side.active_run_MEA_DMD import active_run_MEA_DMD
 from src.Win_side.init_run_MEA_DMD import init_run_MEA_DMD
 from src.Win_side.gen_and_save_electrode_info import gen_and_save_electrode_info
@@ -38,9 +38,9 @@ def main():
     '''
     # Visualize the chosen electrode spike shapes and selected threshold multiplier
     # ...
-    
     # Generate the electrode info and save it to electrode_info_path
-    electrode_info, electrode_info_filename = gen_and_save_electrode_info(testmode=testmode)
+    electrode_info, electrode_info_filename = gen_and_save_electrode_info(
+        testmode=testmode, path=electrode_info_path, filename=electrode_info_pathname.name)
 
     # Wait for the electrode info to be transfered to the Linux computer
     if not ask_to_continue(testmode, electrode_info_filename): return

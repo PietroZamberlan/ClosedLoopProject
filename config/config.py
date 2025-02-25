@@ -33,7 +33,7 @@ REQ_SOCKET_DMD_PORT      = '5558'
 # Define the executables paths
 DMD_EXE_PATH    = r"C:/Users/user/Repositories/cppalp/x64/Release/film.exe"
 DMD_EXE_DIR     = r"C:/Users/user/Repositories/cppalp/x64/Release/"
-ORT_READER_PATH = r"C:\Users\user\ClosedLoopProject\src\Win_side\ort_reader.py"
+ORT_READER_PATH = REPO_DIR / "src" / "Win_side" / "ort_reader.py"
 
 # Main parameters
 experiment_data_path   = REPO_DIR / 'data'                                # Data folder that does not change

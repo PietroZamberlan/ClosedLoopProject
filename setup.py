@@ -15,7 +15,6 @@ setup(
 )
 
 '''
-
 You can adjust your setup.py so that it tells setuptools to look for packages in the entire repo root. 
 This lets you install and reference packages from directories like config/, src/, and Gaussian-Processes/. 
 One way to do this is to set the repository root as the package root by using the mapping
@@ -23,8 +22,6 @@ One way to do this is to set the repository root as the package root by using th
   package_dir = { "": "." }
 
 and listing all the package patterns in the include option of find_packages. For example:
-
-
 
 After installing the package (for example, with pip install -e . from the repo root), 
 you can import modules from these directories without errors. 

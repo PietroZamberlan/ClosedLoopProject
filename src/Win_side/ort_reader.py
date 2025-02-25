@@ -21,7 +21,7 @@ from System.Collections.Generic import List
 from clr_array_to_numpy import asNumpyArray # This is the original way to do it, but you need to sys.path.append('path_to_McsUsbNet_Examples')
 
 # To imoprt Mcs
-clr.AddReference('C:\\Users\\user\\ClosedLoopProject\\src\\Win_side\\McsUsbNet_Examples\\McsUsbNet\\x64\\\McsUsbNet.dll')
+clr.AddReference((REPO_DIR / 'src'/ 'Win_side' / 'McsUsbNet_Examples' / 'McsUsbNet'/ 'x64' / 'McsUsbNet.dll').absolute().as_posix() )
 from Mcs.Usb import CMcsUsbListNet
 from Mcs.Usb import DeviceEnumNet
 from Mcs.Usb import CMeaDeviceNet
