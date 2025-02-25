@@ -49,13 +49,13 @@ def initial_listener_linux( electrode_info ):
             electrode_info, *nat_img_tuple )# dict of tensors
 
         # Plot the chosen RF on the checkerboard STA 
-        # GP_utils.plot_hyperparams_on_STA(
-            # start_model, STA=None, ax=None )
+        GP_utils.plot_hyperparams_on_STA(
+            start_model, STA=None, ax=None )
         
         # Send the VEC file and wait for confirmed reception
-        # generate_send_wait_vec( 
-        #     start_model, threadict, req_socket_vec, 
-        #     n_gray_trgs_init, n_img_trgs_init, n_end_gray_trgs )
+        generate_send_wait_vec( 
+            start_model, threadict, req_socket_vec, 
+            n_gray_trgs_init, n_img_trgs_init, n_end_gray_trgs )
 
         # Receive response packets in different thread, and count triggers
         spike_counts = receive_responses_count_spikes(
@@ -119,6 +119,6 @@ if __name__ == "__main__":
     print(" Starting listener_linux.py as main...")
 
     electrode_info = main_utils.upload_electrode_info( 
-        electrode_info_pathname, print_info=True, testmode = testmode )
+        electrode_info_pathname, print_info=True, testmode=testmode )
     
     initial_listener_linux( electrode_info )
